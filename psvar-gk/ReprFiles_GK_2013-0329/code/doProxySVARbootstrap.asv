@@ -1,0 +1,97 @@
+function VARbs = doProxySVARbootstrap(VAR,nboot,clevel,DATASET)
+
+% Wild Bootstrap
+  jj=1; % jj indexes bootstrap draw
+  
+  [VAR.T_m,VAR.n_m] = size(VAR.proxies);
+
+  res = detrend(VAR.res,'constant');
+  if VAR.switch_extern==1
+        res_e = detrend(VAR.res_e,'constant');
+  end;
+
+     while jj<nboot+1
+       rr = (1-2*(rand(VAR.T,1)>0.5));
+       resb = (res.*(rr*ones(1,VAR.n)))';
+       if VAR.switch_extern==1
+        resb_e = (res_e.*(rr*ones(1,VAR.n_e)))';
+        varsb_e = zeros(VAR.p+VAR.T,VAR.n_e);
+       end;
+       
+       varsb = zeros(VAR.p+VAR.T,VAR.n);
+       varsb(1:VAR.p,:)=VAR.vars(1:VAR.p,:);
+       
+        for tt=VAR.p+1:VAR.p+VAR.T
+        lvars = (varsb(tt-1:-1:tt-VAR.p,:))';
+        varsb(tt,:) = lvars(:)'*VAR.bet(1:VAR.p*VAR.n,:)+VAR.bet(VAR.p*VAR.n+1:end,:)+resb(:,tt-VAR.p)';     
+         if VAR.switch_extern==1
+            varsb_e(tt,:) = lvars(:)'*VAR.bet_e(1:VAR.p*VAR.n,:)+VAR.bet_e(VAR.p*VAR.n+1:end,:)+resb_e(:,tt-VAR.p)';
+         end;
+
+        end
+              
+        VARBS = VAR;
+        VARBS.vars = varsb;
+        if VAR.switch_extern==1
+            VARBS.extern = varsb_e;
+        end;
+        VARBS.proxies = [VAR.m.*(rr(VAR.T-VAR.T_m+1:end,1)*ones(1,size(VAR.m,2)))];  %VAR.proxies(1:VAR.p,:); 
+        VARBS = doProxySVAR(VARBS,DATASET);
+        
+        for i=1:2 % 2 different monpol variables    
+        irs = VARBS.irs(:,:,i);
+        VARbs.irs(:,jj,i) = irs(:);
+
+        string_cell_crisis = {''};  %,'_crisis','_zlb'
+        no_string_cell_crisis=length(string_cell_crisis);
+        
+        if VAR.switch_extern==1
+            for ii=1:no_string_cell_crisis
+                eval(['irs' string_cell_crisis{1,ii} '_e = VARBS.irs' string_cell_crisis{1,ii} '_e(:,:,j);']);
+                eval(['irs' string_cell_crisis{1,ii} '_e_matur = VARBS.irs' string_cell_crisis{1,ii} '_e_matur(:,:,j);']);        
+                eval(['irs' string_cell_crisis{1,ii} '_ts = VARBS.irs' string_cell_crisis{1,ii} '_ts(:,:,j);']);        
+                eval(['irs' string_cell_crisis{1,ii} '_er = VARBS.irs' string_cell_crisis{1,ii} '_er(:,:,j);']);        
+                eval(['irs' string_cell_crisis{1,ii} '_rr = VARBS.irs' string_cell_crisis{1,ii} '_rr(:,:,j);']);        
+                eval(['irs' string_cell_crisis{1,ii} '_bkeven = VARBS.irs' string_cell_crisis{1,ii} '_bkeven(:,:,j);']);        
+                eval(['VARbs.irs' string_cell_crisis{1,ii} '_e(:,jj,i) = irs' string_cell_crisis{1,ii} '_e(:);']);
+                eval(['VARbs.irs' string_cell_crisis{1,ii} '_e_matur(:,jj,i) = irs' string_cell_crisis{1,ii} '_e_matur(:);']);
+                eval(['VARbs.irs' string_cell_crisis{1,ii} '_ts(:,jj,i) = irs' string_cell_crisis{1,ii} '_ts(:);']);
+                eval(['VARbs.irs' string_cell_crisis{1,ii} '_er(:,jj,i) = irs' string_cell_crisis{1,ii} '_er(:);']);
+                eval(['VARbs.irs' string_cell_crisis{1,ii} '_rr(:,jj,i) = irs' string_cell_crisis{1,ii} '_rr(:);']);
+                eval(['VARbs.irs' string_cell_crisis{1,ii} '_bkeven(:,jj,i) = irs' string_cell_crisis{1,ii} '_bkeven(:);']);
+            end;
+        end;
+        end
+%        EIGS(jj,:) = VARBS.RMeigs';
+      jj=jj+1;   
+     end
+     
+ for jj = 1:length(clevel)
+ for i=1:2  %2 monpol
+    if VAR.switch_extern==1
+        for ii=1:no_string_cell_crisis
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'L_e(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_e(:,:,i,jj)'',(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_e,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'H_e(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_e(:,:,i,jj)'',1-(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_e,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'L_e_matur(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_e_matur(:,:,i,jj)'',(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_e_matur,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'H_e_matur(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_e_matur(:,:,i,jj)'',1-(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_e_matur,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'L_ts(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_ts(:,:,i,jj)'',(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_ts,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'H_ts(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_ts(:,:,i,jj)'',1-(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_ts,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'L_er(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_er(:,:,i,jj)'',(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_er,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'H_er(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_er(:,:,i,jj)'',1-(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_er,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'L_rr(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_rr(:,:,i,jj)'',(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_rr,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'H_rr(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_rr(:,:,i,jj)'',1-(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_rr,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'L_bkeven(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_bkeven(:,:,i,jj)'',(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_bkeven,2));']);
+            eval(['VARbs.irs' string_cell_crisis{1,ii} 'H_bkeven(:,:,i,jj)=reshape(quantile(VARbs.irs' string_cell_crisis{1,ii} '_bkeven(:,:,i,jj)'',1-(1-clevel/100)/2),VAR.irhor,size(VARBS.irs' string_cell_crisis{1,ii} '_bkeven,2));']);
+        end;
+    end;
+ VARbs.irsH(:,:,i,jj)=reshape(quantile(IRS(:,:,i)',(1-clevel(jj)/100)/2),VAR.irhor, size(VARBS.irs,2));
+ VARbs.irsL(:,:,i,jj)=reshape(quantile(IRS(:,:,i)',1-(1-clevel(jj)/100)/2),VAR.irhor, size(VARBS.irs,2));
+ end
+ end
+ 
+ %VARbs.RMeigci   = [quantile(EIGS,(1-clevel/100)/2)' quantile(EIGS,1-(1-clevel/100)/2)'];
+  
+
+
+
+

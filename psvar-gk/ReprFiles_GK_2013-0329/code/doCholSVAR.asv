@@ -1,0 +1,44 @@
+function VAR = doCholSVAR(VAR)  %DATASET
+ 
+ X      = lagmatrix(VAR.vars,1:VAR.p);
+ X      = X(VAR.p+1:end,:);
+ Y      = VAR.vars(VAR.p+1:end,:);
+ %[VAR.T,VAR.n] = size(Y);
+
+ %Assuming proxies start at least p periods later
+ %VAR.m = VAR.proxies(1:end,:);          %%Assuming proxies start at least p periods later
+ %[VAR.T_m,VAR.n_m] = size(VAR.proxies);
+ 
+ 
+% Run VAR
+%%%%%%%%%%%%
+VAR.bet=[X ones(length(X),1)]\Y; 
+VAR.res = Y-[X ones(length(X),1)]*VAR.bet;
+%VAR.bet=[X ones(length(VAR.m),1)]\Y; 
+%VAR.res = Y-[X ones(length(X),1)]*VAR.bet;
+
+VAR.Sigma = (VAR.res'*VAR.res)/(VAR.T-VAR.n*VAR.p-1);
+%VAR.Sigma_m = (VAR.res(VAR.T-VAR.T_m+1:end,:)'*VAR.res(VAR.T-VAR.T_m+1:end,:))/(VAR.T_m-VAR.n*VAR.p-1);
+
+% Identification
+%%%%%%%%%%%%%%%%%
+VAR.B   =   chol(VAR.Sigma,'lower');
+
+
+% Impulse Responses
+%%%%%%%%%%%%%%%%%%%%%%
+for i=1:2       %VAR.k   
+    
+ irs = [];
+ irs(VAR.p+1,i) = VAR.B(:,2+i); %-VAR.b1(:,i,i)/VAR.b1(i,i,i);
+
+ for tt=2:VAR.irhor
+  lvars = (irs(VAR.p+tt-1:-1:tt,:))';
+  irs(VAR.p+tt,:) = lvars(:)'*VAR.bet(1:VAR.p*VAR.n,:);
+ end
+
+ VAR.irs(1:VAR.irhor,1:VAR.n,i) = irs(VAR.p+1:VAR.p+VAR.irhor,:); 
+
+end;
+
+
