@@ -1,0 +1,212 @@
+/* datain_3.gss
+   mww, 4/3/2012
+   Read in Data and Construct Instruments For Structural Analysis
+*/
+
+
+@ -- Additional Instruments ---- @
+ @ Read Data @
+ ns_inst_m=12;       @ Number of montly series @
+ ns_inst_q=10;      @ Number of quarterly series @
+ inst_data = 0;
+@ --------------- Read In Monthly Data ---------------- @   
+  ndesc=2;
+  ncodes=1;
+  sheet=1;
+  {namevec,descmat,tcodemat,datevec,datamat}=readxls(xlsname_inst,sheet,ns_inst_m,dnobs_m,ndesc,ncodes);
+  labvec_long=descmat[.,1];
+  labvec_short=descmat[.,2];
+  @ Convert Namestrings to upper case @
+  i=1; do while i <= rows(namevec);
+   namevec[i]=upper(namevec[i]);
+  i=i+1; endo;
+  @ Eliminate any leading or trailing blanks @
+  namevec=strtriml(namevec);
+  namevec=strtrimr(namevec);
+ @ ------------ Construct Instruments ------------- @
+  @ -- Romer and Romer 2004 Monetary Policy Shocks -- @
+  ii = maxindc(namevec .$== "RR_AER04");
+  tmp = datamat[.,ii];
+  rr_aer04 = mtoq(tmp,caldsm,caldsq,0);
+  rr_aer04 = rr_aer04-meanc(packr(rr_aer04));
+  
+  @-- Sims-Zha MP Shocks -- @
+  ii = maxindc(namevec .$== "SZ_MS");
+  tmp = datamat[.,ii];
+  sz_ms = mtoq(tmp,caldsm,caldsq,0); 
+  
+  @ -- Hamilton (2003) -- @
+  ii = maxindc(namevec .$== "WPU0561");
+  tmp = datamat[.,ii]; 
+  poil = mtoq(tmp,caldsm,caldsq,3);     @ Last month in quarter; Hamilton (2003) fn 8 @
+  maxoil = missmat(dnobs_q,1);
+  t = 13; do while t <= dnobs_q;  @ quarters @
+   maxoil[t] = maxc(poil[t-12:t-1]);
+  t = t+1; endo;
+  dpm = 100*ln(poil./maxoil);
+  h_oil = (dpm .> 0).*dpm;
+  
+  @ -- Ramey-Vine --- @	
+  ii = maxindc(namevec .$== "AHETPI");
+  ahetpi = datamat[.,ii];
+  ii = maxindc(namevec .$== "AWHI");
+  awhi = datamat[.,ii];  
+  ii = maxindc(namevec .$== "CPIAUCSL");
+  cpiaucsl = datamat[.,ii]; 
+  ii = maxindc(namevec .$== "FEDFUNDS");
+  fedfunds = datamat[.,ii];
+  ii = maxindc(namevec .$== "INDPRO");
+  indpro = datamat[.,ii];
+  ii = maxindc(namevec .$== "RAMEYVINE");
+  rameyvine = datamat[.,ii];
+  pcpi = ln(cpiaucsl);
+  ip = ln(indpro);
+  hours = ln(awhi);
+  wages = ln(ahetpi);
+  poil = ln(rameyvine);
+  y = poil~pcpi~wages~ip~hours~fedfunds;
+  nlag = 6;
+  ylag = missmat(dnobs_m,nlag*cols(y));
+  ilag = 1; do while ilag <= nlag;
+  	k = (ilag-1)*cols(y);
+  	ylag[ilag+1:dnobs_m,k+1:k+cols(y)] = y[1:dnobs_m-ilag,.];
+  ilag = ilag + 1; endo;
+  trend = seqa(1,1,dnobs_m);
+  const = ones(dnobs_m,1);
+  x = const~trend~ylag;
+  @ Estimate over Ramey-Vine Sample Period 1967:1 to 2009:12 @
+  ismpl = (calvec_m .>= 1966.99).*(calvec_m .<= 2009.99);
+  cal = selif(calvec_m,ismpl);
+  tr = selif(trend,ismpl);
+  poilp = selif(poil,ismpl);
+  xp = selif(x,ismpl);
+  @ Regression @
+  bet = poilp/xp;
+  res_oil = poilp - xp*bet;
+  rv_oil_m = missmat(dnobs_m,1);
+  rv_oil_m[tr]=res_oil;
+  rv_oil = mtoq(rv_oil_m,caldsm,caldsq,0);
+ 
+  @-- Ted Spread -- @
+  ii = maxindc(namevec .$== "MED3_TB3M");
+  tmp = datamat[.,ii];
+  y = mtoq(tmp,caldsm,caldsq,0); 
+  nlag = 2;
+  x = missmat(dnobs_q,nlag);
+  i = 1; do while i <= nlag;
+  	x[i+1:dnobs_q,i] = y[1:dnobs_q-i];
+  i = i+1; endo;
+  x = x~ones(dnobs_q,1);
+  tmp = packr(y~x);
+  yp = tmp[.,1];
+  xp = tmp[.,2:cols(tmp)];
+  bet = yp/xp;
+  res = y - x*bet;
+  ted_spr = res;
+  
+
+  @-- BBD Policy Uncertainty -- @
+  ii = maxindc(namevec .$== "POLUNC");
+  tmp = datamat[.,ii];
+  y = mtoq(tmp,caldsm,caldsq,0);
+  y = ln(y);
+  nlag = 2;
+  x = missmat(dnobs_q,nlag);
+  i = 1; do while i <= nlag;
+  	x[i+1:dnobs_q,i] = y[1:dnobs_q-i];
+  i = i+1; endo;
+  x = x~ones(dnobs_q,1);
+  tmp = packr(y~x);
+  yp = tmp[.,1];
+  xp = tmp[.,2:cols(tmp)];
+  bet = yp/xp;
+  res = y - x*bet;
+  polunc = res;
+  
+  
+  @-- VIX -- @
+  ii = maxindc(namevec .$== "MVOL");
+  tmp = datamat[.,ii];
+  y = mtoq(tmp,caldsm,caldsq,0);
+  nlag = 2;
+  x = missmat(dnobs_q,nlag);
+  i = 1; do while i <= nlag;
+  	x[i+1:dnobs_q,i] = y[1:dnobs_q-i];
+  i = i+1; endo;
+  x = x~ones(dnobs_q,1);
+  tmp = packr(y~x);
+  yp = tmp[.,1];
+  xp = tmp[.,2:cols(tmp)];
+  bet = yp/xp;
+  res = y - x*bet;
+  vix = res;
+  
+@ --------------- Read In Quarterly Data ---------------- @   
+  ndesc=2;
+  ncodes=1;
+  sheet=2;
+  {namevec,descmat,tcodemat,datevec,datamat}=readxls(xlsname_inst,sheet,ns_inst_q,dnobs_q,ndesc,ncodes);
+  labvec_long=descmat[.,1];
+  labvec_short=descmat[.,2];
+
+  @ Convert Namestrings to upper case @
+  i=1; do while i <= rows(namevec);
+   namevec[i]=upper(namevec[i]);
+  i=i+1; endo;
+  
+  @ GSS Shock (Gurkaynak, Sack, Swanson, IJCB 2005) @
+  ii = maxindc(namevec .$== "GSS");
+  gss = datamat[.,ii];
+  gss = gss - meanc(packr(gss));
+
+  @ Killian Opec Shortfall (Killian Restat 2008) @
+  ii = maxindc(namevec .$== "KILLIAN_OPEC");
+  killian_opec = datamat[.,ii];
+  killian_opec = killian_opec - meanc(packr(killian_opec));
+
+  @ Ramey_News Variable @
+  ii = maxindc(namevec .$== "R_NEWS");
+  r_news = datamat[.,ii];
+  r_news = r_news - meanc(packr(r_news));
+
+  @ Fisher-Peters Excess Returns @
+  ii = maxindc(namevec .$== "FP_EXRET");
+  fp_exret = datamat[.,ii];
+  
+  @ Smets-Wouters Model "A" Shock @
+  ii = maxindc(namevec .$== "EPS_A");
+  eps_a = datamat[.,ii];
+  
+  @ Smets-Wouters Model "R" Shock @
+  ii = maxindc(namevec .$== "EPS_R");
+  eps_r = datamat[.,ii];
+  
+  @ Romer and Romer 2010 Tax Shock@
+  ii = maxindc(namevec .$== "EXONR");
+  exonr = datamat[.,ii];
+  exonr = exonr - meanc(packr(exonr));
+  
+  @ GZ EBP @
+  ii = maxindc(namevec .$== "GZ_EBP");
+  y = datamat[.,ii];
+  nlag = 2;
+  x = missmat(dnobs_q,nlag);
+  i = 1; do while i <= nlag;
+  	x[i+1:dnobs_q,i] = y[1:dnobs_q-i];
+  i = i+1; endo;
+  x = x~ones(dnobs_q,1);
+  tmp = packr(y~x);
+  yp = tmp[.,1];
+  xp = tmp[.,2:cols(tmp)];
+  bet = yp/xp;
+  res = y - x*bet;
+  gz_ebp = res;
+
+  @ Fernald Utilization Adjusted TFP Shock@
+  ii = maxindc(namevec .$== "DTFP_UTIL");
+  dtfp_util = datamat[.,ii];
+  dtfp_util = dtfp_util - meanc(packr(dtfp_util));     
+  
+  @ Bank Lending Shocks from Bassett, Chosak, Driscoll, and Zakrajsek (2011)@       
+  ii = maxindc(namevec .$== "BCDZ_BL");         
+  bcdz_bl = datamat[.,ii];   

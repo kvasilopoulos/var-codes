@@ -1,0 +1,146 @@
+@ Extract Estimation Sample @
+ii = bpinclcode .== 1;
+tt = seqa(1,1,nx);
+ic = selif(tt,ii);
+est_data = bpdata[.,ic];
+est_namevec = bpnamevec[ic];
+
+/*
+@ Number of variables available in each time period @
+t=1; do while t <= dnobs;
+	tmp=packr(est_data[t,.]');
+	calds[t,.];;rows(tmp);
+t=t+1; endo;
+*/
+
+c1 = nest_fy + (nest_fq-1)/4;
+c2 = nest_ly + (nest_lq-1)/4;
+ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+tt = seqa(1,1,dnobs);
+tmp=selif(tt,ii);
+ir_first = tmp[1];
+ir_last = tmp[rows(tmp)];
+
+c1 = nest_fy_fs + (nest_fq_fs-1)/4;
+c2 = nest_ly_fs + (nest_lq_fs-1)/4;
+ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+tt = seqa(1,1,dnobs);
+tmp=selif(tt,ii);
+ir_first_fs = tmp[1];
+ir_last_fs = tmp[rows(tmp)];
+
+
+@ Estimate Factors and Lambda over estimation sample @
+@ Step 1 ... Standardize Data Using period specific standardization @
+xdata = est_data[ir_first:ir_last,.];
+xdata_fs = est_data[ir_first_fs:ir_last_fs,.];
+nt = rows(xdata);
+ns = cols(xdata);
+nt_fs = rows(xdata_fs);
+xstd  = miss(zeros(ns,1),0);
+xmean  = miss(zeros(ns,1),0);
+i = 1; do while i <= ns;
+	tmp = packr(xdata[.,i]);
+	xmean[i] = meanc(tmp);
+	xstd[i] = stdc(tmp);
+i=i+1; endo;
+xdata_std = (xdata - xmean')./xstd';
+xdata_std_fs = (xdata_fs - xmean')./xstd';      @ Use same standardization factors as estimation sample @
+
+@ Step 2 ... initial estimate based on balanced panel ... @
+xbal = packr(xdata_std')';
+{f_0,lam_0,eigval,ssr}=pc_factor(xbal,nfac);
+f = f_0;
+lambda = miss(zeros(ns,nfac),0);
+nit=1; do while nit <= nols_it;
+ i=1; do while i <= ns;
+ 	tmp=packr(xdata_std[.,i]~f);
+ 	y=tmp[.,1];
+ 	x=tmp[.,2:cols(tmp)];
+ 	b=y/x;
+ 	lambda[i,.]=b';
+ i=i+1; endo;
+ t=1; do while t <= nt;
+  tmp=packr(xdata_std[t,.]'~lambda);
+  y=tmp[.,1];
+  x=tmp[.,2:cols(tmp)];
+  b=y/x;
+  f[t,.]=b';
+ t=t+1; endo;
+ @ Compute residuals @
+ e = xdata_std-f*lambda';
+ sse=0;
+ i=1; do while i <= cols(e);
+ 	tmp=packr(e[.,i]);
+  sse=sse+tmp'tmp;
+ i=i+1; endo; 
+ @ nit;;sse; @
+nit=nit+1; endo;
+f_est = f;
+
+@ Estimate f over full sample period @
+f_fs = miss(zeros(nt_fs,nfac),0);
+t=1; do while t <= nt_fs;
+ tmp=packr(xdata_std_fs[t,.]'~lambda);
+ y=tmp[.,1];
+ x=tmp[.,2:cols(tmp)];
+ b=y/x;
+ f_fs[t,.]=b';
+t=t+1; endo;
+   
+@ Normalize Factor to have identity second moment matrix over sample period @
+tmp=packr(f_est);
+v=tmp'tmp/rows(tmp);
+vi=invpd(v);
+ci=chol(vi);
+f_est=f_est*ci';
+lambda=lambda*inv(ci);
+f_fs = f_fs*ci';
+
+wght = invpd(lambda'lambda)*lambda';
+wght = wght';
+est_names = bpnamevec[ic];
+
+/*
+format /rd 8,3;
+i=1; do while i <= rows(wght);
+	est_names[i];;",";;prtmat_comma(wght[i,.]);
+i=i+1; endo;
+*/
+
+@ Save Factor for use in Regressions @
+fac_est = miss(zeros(dnobs,nfac),0);
+fac_est[ir_first:ir_last,.]=f_est;
+fac = miss(zeros(dnobs,nfac),0);
+fac[ir_first_fs:ir_last_fs,.]=f_fs;
+
+if i_const .== 1;
+ @ Add Constant Term as Last Factor @
+ fac=fac~ones(dnobs,1);
+ fac_est = fac_est~ones(dnobs,1);
+endif;
+
+lam = miss(zeros(nx,nfac),0);
+ydata = miss(zeros(dnobs,nx),0);
+yfit = miss(zeros(dnobs,nx),0);
+
+tt = seqa(1,1,dnobs);
+i=1; do while i <= nx;
+	tmp=packr(tt~bpdata[.,i]~fac_est);
+	i1 = tmp[1,1];
+	i2 = tmp[rows(tmp),1];
+	y = bpdata[i1:i2,i];
+	x = fac_est[i1:i2,.];
+  if rows(tmp) ./= rows(y);
+    "Internal Missing Values";stop;
+  endif;
+  b=y/x;
+  lam[i,.]=b';
+ i=i+1; endo;
+  
+ @ Reduced Form Values @
+ fac_rf = fac[.,1:nfac];
+ lambda_rf = lam[.,1:nfac];
+ if i_const .== 1;
+  lambda_constant = lam[.,nfac+1];  @ Constant Term @
+ endif;

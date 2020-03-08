@@ -1,0 +1,54 @@
+@ -- Compute Accumulated GDP Changes From Peak -- @
+zer = zeros(dnobs,1);
+
+yfit_1 = yfit_eta_1_all;                 @ Eta_1 part of fitted value @
+yfit = yfit_eta_1_all + yfit_eta_2;      @ Complete Fitted Value @
+
+istr = "GDPC";                           @ GDP @
+nn1 = maxindc(bpnamevec .$== istr);
+istr = "PAYEMS";                         @ EMP @
+nn2 = maxindc(bpnamevec .$== istr);
+yf_1 = yfit_1[.,nn1~nn2];
+yf = yfit[.,nn1~nn2];
+y = bpdata[.,nn1~nn2];
+yr = bpdata_unfiltered[.,nn1~nn2];
+is0 = (calvec .> 2007.999) .* (calvec .<= 2008.51);
+is1 = (calvec .> 2007.999) .* (calvec .<= 2009.26);
+is2 = calvec .> 2007.99;
+
+format /rd 4,1;
+
+"Model: ";;ident_str;
+@ Compute Declines @
+"Declines Through 2008:Q3 GDP";
+100*sumc(selif(y[.,1],is0));
+100*sumc(selif(yf[.,1],is0));
+100*sumc(selif(yf_1[.,1],is0));
+"Declines Through 2008:Q3 EMP";
+100*sumc(selif(y[.,2],is0));
+100*sumc(selif(yf[.,2],is0));
+100*sumc(selif(yf_1[.,2],is0));
+"Declines Through 2009:Q2 GDP";
+100*sumc(selif(y[.,1],is1));
+100*sumc(selif(yf[.,1],is1));
+100*sumc(selif(yf_1[.,1],is1));
+"Declines Through 2009:Q2 EMP";
+100*sumc(selif(y[.,2],is1));
+100*sumc(selif(yf[.,2],is1));
+100*sumc(selif(yf_1[.,2],is1));
+"Declines Through 2011Q2 GDP";
+100*sumc(selif(y[.,1],is2));
+100*sumc(selif(yf[.,1],is2));
+100*sumc(selif(yf_1[.,1],is2));
+"Declines Through 2011:Q2 EMP";
+100*sumc(selif(y[.,2],is2));
+100*sumc(selif(yf[.,2],is2));
+100*sumc(selif(yf_1[.,2],is2));
+"";
+@ Print in Format used in Table @
+rslt = 100*sumc(selif(yf_1[.,1],is0));
+rslt = rslt~100*sumc(selif(yf_1[.,1],is1));
+rslt = rslt~100*sumc(selif(yf_1[.,1],is2));
+rslt = rslt~100*sumc(selif(yf_1[.,2],is0));
+rslt = rslt~100*sumc(selif(yf_1[.,2],is1));
+rslt = rslt~100*sumc(selif(yf_1[.,2],is2));

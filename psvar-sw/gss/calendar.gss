@@ -1,0 +1,46 @@
+/*
+    Calendar.gss
+    Monthly and Quarterly Calendars for Crisis
+*/
+
+@ Sample Period @
+nfy=1959;    @ First Year of Data Set @
+nfq=1;       @ First period of Data Set @
+nfm=1;       @ First month in data set @
+nly=2011;    @ Last Year of Data Set @
+nlq=2;       @ Last period of Data Set @
+nlm=6;       @ Last Month in Data Set @
+
+@ Calendars and so forth @
+nper=12; nfp=nfm; nlp=nlm;
+dnobs_m=nper*(nly-nfy-1)+nlp+(nper+1-nfp);        @ - Number of Obs, data - @
+calvec_m=seqa(nfy+(nfp-1)/nper,1/nper,dnobs_m);     @ -- Calendar Vector -- @
+nper=4; nfp=nfq; nlp=nlq;
+dnobs_q=nper*(nly-nfy-1)+nlp+(nper+1-nfp);        @ - Number of Obs, data - @
+calvec_q=seqa(nfy+(nfp-1)/nper,1/nper,dnobs_q);     @ -- Calendar Vector -- @
+caldsm=zeros(dnobs_m,2);
+caldsq=zeros(dnobs_q,2);
+yr=nfy;
+mt=nfm-1;
+i=1; do while i <= dnobs_m;
+ mt=mt+1;
+ if mt .> 12;
+  mt=1;
+  yr=yr+1;
+ endif;
+ caldsm[i,1]=yr;
+ caldsm[i,2]=mt;
+i=i+1; endo;
+
+yr=nfy;
+qt=nfq-1;
+i=1; do while i <= dnobs_q;
+ qt=qt+1;
+ if qt .> 4;
+  qt=1;
+  yr=yr+1;
+ endif;
+ caldsq[i,1]=yr;
+ caldsq[i,2]=qt;
+i=i+1; endo;
+

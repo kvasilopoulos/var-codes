@@ -1,0 +1,229 @@
+/* datain_2.gss
+   mww, 2/21/2012
+   read in data for Crisis Paper.
+   detailed BLS data for use in trend comparisions
+*/
+
+
+@ --------------- Read In Quarterly Data ---------------- @
+@ Read Data @
+
+ns_q=74;      @ Number of quarterly series @
+@ Read Data @
+ndesc=2;
+ncodes=6;
+sheet=2;
+{namevec,descmat,tcodemat,datevec,datamat}=readxls(xlsname,sheet,ns_q,dnobs_q,ndesc,ncodes);
+@ Eliminate any leading or trailing blanks @
+namevec=strtriml(namevec);
+namevec=strtrimr(namevec);
+
+@ Save Relevant Data Series @
+pstr_def = "GDPC96";
+ii = namevec .$== pstr_def;
+gdp = selif(datamat',ii)';
+ln_gdp = ln(gdp);
+dln_gdp = dif(ln_gdp,1);
+
+pstr_def = "OUTNFB";
+ii = namevec .$== pstr_def;
+outnfb = selif(datamat',ii)';
+ln_outnfb = ln(outnfb);
+dln_outnfb = dif(ln_outnfb,1);
+
+pstr_def = "HOANBS";
+ii = namevec .$== pstr_def;
+hoursnfb = selif(datamat',ii)';
+ln_hoursnfb = ln(hoursnfb);
+dln_hoursnfb = dif(ln_hoursnfb,1);
+
+pstr_def = "PRS85006013";
+ii = namevec .$== pstr_def;
+empnfb = selif(datamat',ii)';
+ln_empnfb = ln(empnfb);
+dln_empnfb = dif(ln_empnfb,1);
+
+calvec=calvec_q;
+calds=caldsq;
+dnobs=rows(calvec);
+
+
+
+@ --------------- Read In Monthly Data ---------------- @
+@ Read Data @
+ndesc=5;
+ncodes=1;
+sheet=1;
+ns_m=20;      @ Number of quarterly series @
+{namevec,descmat,tcodemat,datevec,datamat}=readxls(xlsname_bls,sheet,ns_m,dnobs_m,ndesc,ncodes);
+
+@ Convert Namestrings to upper case @
+ i=1; do while i <= rows(namevec);
+  namevec[i]=upper(namevec[i]);
+ i=i+1; endo;
+
+@ Eliminate any leading or trailing blanks @
+namevec=strtriml(namevec);
+namevec=strtrimr(namevec);
+
+@ Get Series @
+pstr_def = "LNS10000001";
+ii = namevec .$== pstr_def;
+pop_m_m = selif(datamat',ii)';
+
+pstr_def = "LNS11000001";
+ii = namevec .$== pstr_def;
+lf_m_m = selif(datamat',ii)';
+
+pstr_def = "LNS11300001";
+ii = namevec .$== pstr_def;
+lfp_m_m = selif(datamat',ii)';
+
+pstr_def = "LNS12000001";
+ii = namevec .$== pstr_def;
+emp_m_m = selif(datamat',ii)';
+
+pstr_def = "LNS10000002";
+ii = namevec .$== pstr_def;
+pop_f_m = selif(datamat',ii)';
+
+pstr_def = "LNS11000002";
+ii = namevec .$== pstr_def;
+lf_f_m = selif(datamat',ii)';
+
+pstr_def = "LNS11300002";
+ii = namevec .$== pstr_def;
+lfp_f_m = selif(datamat',ii)';
+
+pstr_def = "LNS12000002";
+ii = namevec .$== pstr_def;
+emp_f_m = selif(datamat',ii)';        
+
+pstr_def = "LNS11000060";
+ii = namevec .$== pstr_def;
+lf_2554_m = selif(datamat',ii)'; 
+
+pstr_def = "LNS11300060";
+ii = namevec .$== pstr_def;
+lfp_2554_m = selif(datamat',ii)';
+
+pop_2554_m = 100*(lf_2554_m./lfp_2554_m);
+
+pstr_def = "LNS11000061";
+ii = namevec .$== pstr_def;
+lf_m_2554_m = selif(datamat',ii)'; 
+
+pstr_def = "LNS11300061";
+ii = namevec .$== pstr_def;
+lfp_m_2554_m = selif(datamat',ii)';
+
+pop_m_2554_m = 100*(lf_m_2554_m./lfp_m_2554_m);
+
+pstr_def = "LNS11000062";
+ii = namevec .$== pstr_def;
+lf_f_2554_m = selif(datamat',ii)'; 
+
+pstr_def = "LNS11300062";
+ii = namevec .$== pstr_def;
+lfp_f_2554_m = selif(datamat',ii)';
+
+pop_f_2554_m = 100*(lf_f_2554_m./lfp_f_2554_m);
+
+emp_pop_m = (emp_m_m+emp_f_m)./(pop_m_m+pop_f_m);
+emp_pop = mtoq(emp_pop_m,caldsm,caldsq,0);
+
+
+pop_m = mtoq(pop_m_m,caldsm,caldsq,0);
+dln_pop_m_noa=transx(pop_m,5);
+@ -- Check For Outliers  -- @
+dln_pop_m=adjout(dln_pop_m_noa,3,4);             @ 4 = 1 sided median replacement @
+
+pop_f = mtoq(pop_f_m,caldsm,caldsq,0);
+dln_pop_f_noa=transx(pop_f,5);
+@ -- Check For Outliers  -- @
+dln_pop_f=adjout(dln_pop_f_noa,3,4);             @ 4 = 1 sided median replacement @
+
+pop_t = pop_m + pop_f;
+dln_pop_t_noa=transx(pop_t,5);
+@ -- Check For Outliers  -- @
+dln_pop_t=adjout(dln_pop_t_noa,3,4);             @ 4 = 1 sided median replacement @
+
+pop_m_p = mtoq(pop_m_2554_m,caldsm,caldsq,0);
+dln_pop_m_p_noa=transx(pop_m_p,5);
+@ -- Check For Outliers  -- @
+dln_pop_m_p=adjout(dln_pop_m_p_noa,3,4);             @ 4 = 1 sided median replacement @
+
+pop_m_np = pop_m - pop_m_p;
+dln_pop_m_np_noa=transx(pop_m_np,5);
+@ -- Check For Outliers  -- @
+dln_pop_m_np=adjout(dln_pop_m_np_noa,3,4);             @ 4 = 1 sided median replacement @
+
+pop_f_p = mtoq(pop_f_2554_m,caldsm,caldsq,0);
+dln_pop_f_p_noa=transx(pop_f_p,5);
+@ -- Check For Outliers  -- @
+dln_pop_f_p=adjout(dln_pop_f_p_noa,3,4);             @ 4 = 1 sided median replacement @
+
+pop_f_np = pop_f - pop_f_p;
+dln_pop_f_np_noa=transx(pop_f_np,5);
+@ -- Check For Outliers  -- @
+dln_pop_f_np=adjout(dln_pop_f_np_noa,3,4);             @ 4 = 1 sided median replacement @
+
+lf_m = mtoq(lf_m_m,caldsm,caldsq,0);
+dln_lf_m_noa=transx(lf_m,5);
+@ -- Check For Outliers  -- @
+dln_lf_m=adjout(dln_lf_m_noa,3,4);             @ 4 = 1 sided median replacement @
+
+lf_f = mtoq(lf_f_m,caldsm,caldsq,0);
+dln_lf_f_noa=transx(lf_f,5);
+@ -- Check For Outliers  -- @
+dln_lf_f=adjout(dln_lf_f_noa,3,4);             @ 4 = 1 sided median replacement @
+
+lf_m_p = mtoq(lf_m_2554_m,caldsm,caldsq,0);
+dln_lf_m_p_noa=transx(lf_m_p,5);
+@ -- Check For Outliers  -- @
+dln_lf_m_p=adjout(dln_lf_m_p_noa,3,4);    @ 4 = 1 sided median replacement @
+
+lf_m_np = lf_m-lf_m_p;
+dln_lf_m_np_noa=transx(lf_m_np,5);
+@ -- Check For Outliers  -- @
+dln_lf_m_np=adjout(dln_lf_m_np_noa,3,4);    @ 4 = 1 sided median replacement @
+
+lf_f_p = mtoq(lf_f_2554_m,caldsm,caldsq,0);
+dln_lf_f_p_noa=transx(lf_f_p,5);
+@ -- Check For Outliers  -- @
+dln_lf_f_p=adjout(dln_lf_f_p_noa,3,4);    @ 4 = 1 sided median replacement @
+
+lf_f_np = lf_f-lf_f_p;
+dln_lf_f_np_noa=transx(lf_f_np,5);
+@ -- Check For Outliers  -- @
+dln_lf_f_np=adjout(dln_lf_f_np_noa,3,4);    @ 4 = 1 sided median replacement @
+
+
+lf_f = mtoq(lf_f_m,caldsm,caldsq,0);
+dln_lf_f_noa=transx(lf_f,5);
+@ -- Check For Outliers  -- @
+dln_lf_f=adjout(dln_lf_f_noa,3,4);             @ 4 = 1 sided median replacement @
+
+
+lf_t = lf_m + lf_f;
+dln_lf_t_noa=transx(lf_t,5);
+@ -- Check For Outliers  -- @
+dln_lf_t=adjout(dln_lf_t_noa,3,4);             @ 4 = 1 sided median replacement @
+
+emp_m = mtoq(emp_m_m,caldsm,caldsq,0);
+dln_emp_m_noa=transx(emp_m,5);
+@ -- Check For Outliers  -- @
+dln_emp_m=adjout(dln_emp_m_noa,3,4);             @ 4 = 1 sided median replacement @
+
+emp_f = mtoq(emp_f_m,caldsm,caldsq,0);
+dln_emp_f_noa=transx(emp_f,5);
+@ -- Check For Outliers  -- @
+dln_emp_f=adjout(dln_emp_f_noa,3,4);             @ 4 = 1 sided median replacement @
+
+emp_t = emp_m + emp_f;
+dln_emp_t_noa=transx(emp_t,5);
+@ -- Check For Outliers  -- @
+dln_emp_t=adjout(dln_emp_t_noa,3,4);             @ 4 = 1 sided median replacement @
+
+
+

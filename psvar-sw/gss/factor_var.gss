@@ -1,0 +1,34 @@
+@ Estimation Period For VAR @
+ ismpl =  nest_fy_var~nest_fq_var~nest_ly_var~nest_lq_var;
+  c1 = ismpl[1,1] + (ismpl[1,2]-1)/4;
+  c2 = ismpl[1,3] + (ismpl[1,4]-1)/4;
+  ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+  tt = seqa(1,1,dnobs);
+  tmp=selif(tt,ii);
+  tfirst = tmp[1];
+  tlast = tmp[rows(tmp)];	
+  {beta,seps,eps,nobs,ndf,v_bs_hom,q,m,g}=varest(fac_rf,var_lag,tfirst,tlast,ivarmat,icomp,i_const); 
+
+ /* 
+  @ Compute Full-Sample Matrix of Residuals @
+  yv=fac_rf;
+  x = missmat(dnobs,1+var_lag*cols(yv));
+  x[.,1]=ones(dnobs,1);
+  i=1; do while i<=var_lag;
+  	jj = 1+(i-1)*cols(yv);
+    x[i+1:dnobs,jj+1:jj+cols(yv)]=yv[1:dnobs-i,.];
+  i=i+1; endo;
+  eps_fs = yv-x*beta;
+ */
+ 
+  format /rd 8,3;
+  @ Compute Long-run Shocks @
+  lrmat = eye(nfac);
+  lag = 1; do while lag <= var_lag;
+  	j = (lag-1)*nfac;
+  	lrmat = lrmat - m[1:nfac,j+1:j+nfac];
+  lag=lag+1; endo;
+  lrmat_inv = inv(lrmat);
+  eps_lr = eps*lrmat_inv';
+
+ 

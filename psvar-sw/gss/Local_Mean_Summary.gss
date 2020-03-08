@@ -1,0 +1,201 @@
+/* Local Mean Summary */
+new;
+outwidth 256;
+library pgraph;
+graphset;
+
+xlsname="c:\\usr\\crisis\\ddisk\\data\\bpea_fac_1.xlsx";                    @ DATA Set (Excel File) @
+outdir="c:\\usr\\crisis\\ddisk\\gss\\out\\";
+figdir="c:\\usr\\crisis\\ddisk\\gss\\fig\\trend\\";
+
+str_figtype = "-c=8 -cf=";
+fig_suffix = "emf";
+
+@ Demeaning @
+idemean = 1;   @ 0 Do Nothing
+               1 Eliminate low-frequency by local Demeaning
+               2 Eliminate low-frequency trend by full-sample demeaning @
+@ Bi-Weight Parameter for local demeaning @
+bw_bw = 100; 
+
+@ Parameters for tests @
+qlr_nma = 4; 
+
+@ Dates @
+date_vec =
+(1965) |
+(1975) |
+(1985) |
+(1995) |
+(2005) |
+(2009.25) ;
+
+#include fcst.prc;
+#include bw_trend.prc;
+#include bw_trend_se.prc;
+#include readxls.prc;
+#include var_crisis.prc;
+#include calendar.gss;
+#include datain_1.gss;
+
+
+@ Graphs for Local Mean Figures @
+_pdate = "";
+xtics(1955,2015,10,1);
+cvtname=figdir $+ "Trend_Plot_1." $+ fig_suffix;
+cmdstr=str_figtype $+ cvtname;
+graphprt(cmdstr);
+begwind;
+window(2,2,0);
+_pnumht = 0.20;
+_ptitht = 0.25;
+_pltype = 6|6;
+_plwidth = 1|4;
+_pcolor = 0|4;
+setwind(1);
+ sname = "GDPC96";
+ strtit = "a. GDP";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+nextwind;
+ sname = "PAYEMS";
+ strtit = "b. Nonfarm Employment";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+nextwind;
+ sname = "HOANBS";
+ strtit = "c. Employee hours, nonfarm business sector";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+nextwind;
+ sname = "OPHNFB";
+ strtit = "d. Output per hour, nonfarm business sector";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+endwind;
+pause(1);
+
+@ Graphs for Local Mean Figures @
+_pdate = "";
+xtics(1955,2015,10,1);
+cvtname=figdir $+ "Trend_Plot_1a." $+ fig_suffix;
+cmdstr=str_figtype  $+ cvtname;
+graphprt(cmdstr);
+_pnumht = 0.20;
+_ptitht = 0.25;
+_pltype = 6|6;
+_plwidth = 1|4;
+_pcolor = 0|4;
+ sname = "GDPC96";
+ strtit = "a. GDP";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+pause(1);
+ cvtname=figdir $+ "Trend_Plot_1b." $+ fig_suffix;
+ cmdstr=str_figtype  $+ cvtname;
+ graphprt(cmdstr);
+ _pnumht = 0.20;
+ sname = "PAYEMS";
+ strtit = "b. Nonfarm Employment";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+pause(1); 
+ cvtname=figdir $+ "Trend_Plot_1c." $+ fig_suffix;
+ cmdstr=str_figtype  $+ cvtname;
+ graphprt(cmdstr);
+ _pnumht = 0.20;
+ sname = "HOANBS";
+ strtit = "c. Employee hours, nonfarm business sector";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+pause(1);
+ cvtname=figdir $+ "Trend_Plot_1d." $+ fig_suffix;
+ cmdstr=str_figtype  $+ cvtname;
+ graphprt(cmdstr);
+ _pnumht = 0.20;
+ sname = "OPHNFB";
+ strtit = "d. Output per hour, nonfarm business sector";
+ title(strtit);
+ ic = maxindc(bpnamevec .$== sname);
+ y1 = bpdata_unfiltered[.,ic];
+ y2 = bpdata_trend[.,ic];
+ y = 400*(y1~y2);
+ xy(calvec,y);
+ pause(1);
+ 
+
+ofile = outdir $+ "local_mean_summary.out";
+output file = ^ofile reset; output on;
+qlr_pv = missmat(rows(bpnamevec),1);
+chow_pv = missmat(rows(bpnamevec),1);  
+i = 1; do while i <= rows(bpnamevec);
+	x = bpdata_unfiltered[.,i];
+	xm = bpdata_trend[.,i];
+	tmp = packr(x);
+  {tmp1,qlrr,bd} = qlra(tmp,1,ones(rows(tmp),1),0.15,qlr_nma);
+  pv = pval_qlr(qlrr,1,0.15);
+	qlr_pv[i,1] = pv;
+	@ Split Sample Chow Test @
+	n1 = floor(rows(tmp)/2);
+	{m1,vm1} = hacm(tmp[1:n1],qlr_nma,1);
+	{m2,vm2} = hacm(tmp[n1+1:rows(tmp)],qlr_nma,1);
+	w_chow = ((m1-m2)^2)/(vm1+vm2);
+	pv = cdfchic(w_chow,1);
+	chow_pv[i,1] = pv;
+  bpnamevec[i];;",";;
+  a = packr(calvec~x);
+  format /rd 6,2;
+  a[1,1];;",";;a[rows(a),1];;",";;
+  format /ro 9,3;
+  meanc(tmp);;",";;
+  m1;;",";;m2;;",";;
+  ii = (calvec .>= 1959.999) .* (calvec .<= 1969.99);
+  tmp = packr(selif(x,ii));meanc(tmp);;",";; 
+  ii = (calvec .>= 1969.999) .* (calvec .<= 1979.99);
+  tmp = packr(selif(x,ii));meanc(tmp);;",";;   
+  ii = (calvec .>= 1979.999) .* (calvec .<= 1989.99);
+  tmp = packr(selif(x,ii));meanc(tmp);;",";; 
+  ii = (calvec .>= 1989.999) .* (calvec .<= 1999.99);
+  tmp = packr(selif(x,ii));meanc(tmp);;",";;   
+  ii = (calvec .>= 1999.999) .* (calvec .<= 2009.99);
+  tmp = packr(selif(x,ii));meanc(tmp);;",";;   
+  format /rd 5,2;
+  ",";;qlr_pv[i];;",";;chow_pv[i];
+  format /ro 9,3;
+  ",,,,,Local Mean,";;
+  j = 1; do while j <= rows(date_vec);
+   ii = abs(calvec - date_vec[j]) .< .001;
+   tmp = selif(bpdata_trend[.,i],ii);
+   tmp;;",";;
+  j = j + 1; endo;
+  ",";
+i = i+1; endo;
+output off;

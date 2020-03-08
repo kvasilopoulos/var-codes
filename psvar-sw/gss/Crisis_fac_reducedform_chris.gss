@@ -1,0 +1,187 @@
+/* Crisis_fac_reducedform.gss
+   Carry out some reduced-form calculations for factor model 
+*/
+
+new;
+outwidth 256;
+library pgraph;
+graphset;
+
+xlsname="c:\\usr\\crisis\\ddisk\\data\\bpea_fac_1.xlsx";                    @ DATA Set (Excel File) @
+outdir="c:\\usr\\crisis\\ddisk\\gss\\out\\";
+figdir="c:\\usr\\crisis\\ddisk\\gss\\fig\\rdfit\\";
+
+ident_str = "Reduced_Form";
+
+str_figtype = "-c=8 -cf=";
+fig_suffix = ".emf";
+
+@ -- Date Parameters for OLS Estimated of lambda and F -- @
+nest_fy = 1959;
+nest_fq = 3;
+nest_ly = 2007;
+nest_lq = 3; 
+
+@ -- Parameters for full sample estimates of F (conditional on Lambda) -- @
+nest_fy_fs = 1959;
+nest_fq_fs = 3;
+nest_ly_fs = 2011;
+nest_lq_fs = 2;
+
+@ Demeaning @
+idemean = 1;   @ 0 Do Nothing
+               1 Eliminate low-frequency by local Demeaning
+               2 Eliminate low-frequency trend by full-sample demeaning @
+@ Bi-Weight Parameter for local demeaning @
+bw_bw = 100;
+
+@ Factor Parameters @
+nfac = 6;
+nols_it = 200;  @ Number of OLS iterations (for unbalanced panel @
+
+@ Other Parameters @
+i_const = 0;   @ 0:No Constant,  1:Constant @
+
+@ Other Parameters @
+n_eig = 8;    @ Number of terms for Eigenvalue Calculation @
+n_rmse =15;   @ Number of terms in RMSE calculation (post-peak) @
+
+@ -- Peak Dates for Comparisons -- @
+pdates = 
+(1960~2) |
+(1969~4) |
+(1973~4) |
+(1980~1) |
+(1981~3) |
+(1990~3) |
+(2001~1) |
+(2007~4) ;
+
+@ -- Category Names --- @
+cat_name = 
+"NIPA" $|
+"IP"   $|
+"Emp/Unemp" $|
+"Hous.Starts" $|
+"Orders/Inv/Sales" $|
+"Prices" $|
+"EmpEarning/Productivity" $|
+"Int. Rates" $|
+"Money&Credit" $|
+"StockPrices&Wealth" $|
+"Housing Prices" $|
+"Exch.Rates" $|
+"" $|
+"Other";
+
+#include fcst.prc;
+#include canon.prc;
+#include var.prc;
+#include bw_trend.prc;
+#include calendar.gss;
+#include readxls.prc;
+#include datain_1.gss;
+#include andrews_eos.prc;
+#include y4plot.prc;
+
+"Number of Series in dataset = ";;cols(bpdata);
+nx=cols(bpdata);
+
+
+@ Estimate Factor Model @
+#include rr_factor.gss;
+
+ ydata = bpdata;
+ yfit = fac_rf*lambda_rf';     @ Full-sample fitted values using lam estimated over estimation sample @
+ yres = ydata-yfit;
+
+
+ @ --------------------------------- Graph actual and fitted values -------------------- @
+ 
+ @ Graph Series -- One Panel Each Series -- Full Sample and Last Decade @
+ igraph = 0;
+ inew = 1;
+ _pdate = "";
+ _pltype = 6|1;
+ _pcolor = 0|4|0;
+ _plwidth = 4|4;
+ _ptitlht = 0.25;
+ _pnumht = 0.2;
+ xtics(2000,2012,1,4);
+ i = 1; do while i <= 6;
+  _plegctl = 0;
+  if i .== 1;
+   str = "OUTNFB";
+   titstr = "a. NFB Output (4Q change, percent)";
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+   _plegctl = 1|6|2000.5|-9;
+   _plegstr = "Actual\000Common Component"; 
+  elseif i .== 2;
+   str = "HOANBS";
+   titstr = "b. Hours NFB (4Q change, percent)";
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+  elseif i .== 3;
+   str = "OPHNFB";
+   titstr = "c. Output per Hour NFB (4Q change, percent)";  
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+  elseif i .== 4;
+   str = "OUTNFB";
+   titstr = "a. NFB Output (1Q change, paar)";
+   scl = 400;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   _plegctl = 1|6|2000.5|-17;
+   _plegstr = "Actual\000Common Component"; 
+  elseif i .== 5;
+   str = "HOANBS";
+   titstr = "b. Hours NFB (1Q change, paar)";
+   scl = 400;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  elseif i .== 6;
+   str = "OPHNFB";
+   titstr = "c. Output per Hour NFB (1Q change, paar)";  
+   scl = 400;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  endif;  
+  if inew .== 1;
+   inew=0;
+   igraph = igraph+ 1;
+   cvtname=figdir $+ "rffit_summary_chris_" $+ ftocv(igraph,1,0) $+ fig_suffix;
+   cmdstr=str_figtype $+ cvtname;
+   graphprt(cmdstr);
+   begwind;
+   window(2,2,0);
+   setwind(1);
+   iwind = 1;
+  endif;
+   title(titstr);
+ 	 y = scl*(y1~y2);
+   xy(calvec,y);
+   iwind = iwind+1;
+   if iwind .<= 3;
+    nextwind;
+   else;
+    endwind;
+    pause(1.0);
+    inew = 1;
+   endif;
+ i = i+1; endo;
+ endwind;
+ 

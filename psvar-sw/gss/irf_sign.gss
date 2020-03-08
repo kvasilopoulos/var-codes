@@ -1,0 +1,33 @@
+@ -- Graph Decomp for Each Factor -- @
+
+ng_imp = 20;
+irf_rpt = seqa(0,1,ng_imp+1);
+xtics(0,ng_imp,4,1);
+zer = zeros(ng_imp+1,1);
+ns = rows(irf_names);
+n1 = ceil(sqrt(ns));
+n2 = floor(sqrt(ns));
+
+irf = missmat(rows(irf_rpt),ns);
+i = 1; do while i <= ns;
+ ii = bpnamevec .$== irf_names[i];
+ nn = maxindc(ii);
+ fimp = fimp_eta_1_1;
+ irf[.,i] = fimp[1:ng_imp+1,.]*lambda_rf[nn,.]';
+ if bptcodevec[nn] .== 2;
+   irf[.,i]=cumsumc(irf[.,i]);
+ elseif bptcodevec[nn] .== 3;
+   irf[.,i]=cumsumc(irf[.,i]);     
+ elseif bptcodevec[nn] .== 5;
+   irf[.,i]=cumsumc(irf[.,i]);  
+ elseif bptcodevec[nn] .== 6;
+   irf[.,i]=cumsumc(irf[.,i]);      
+ endif;  
+i = i+1; endo;
+
+irf_sign = 1;
+if irf[1,1] .< 0;
+  irf_sign = -1;
+endif;
+
+irf = irf./irf[1,1];

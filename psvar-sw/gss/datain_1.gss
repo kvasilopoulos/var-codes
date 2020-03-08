@@ -1,0 +1,285 @@
+/* datain.gss
+   mww, 12/10/2011
+   read in data for Crisis Paper.
+*/
+
+@ -- Parameters for Outlier Adjustment -- @
+ioutlier=1;       @ = 1 for correcting outliers in X @
+thr1=4.5;           @ Threshold multiple for IQR @
+thr2=3;           @ Threshold multiple for IQR @
+
+ns_m=137;     @ Number of montly series @
+ns_q=74;      @ Number of quarterly series @
+
+@ --------------- Read In Monthly Data ---------------- @
+@ Read Data @
+ndesc=2;
+ncodes=7;
+sheet=1;
+{namevec,descmat,tcodemat,datevec,datamat}=readxls(xlsname,sheet,ns_m,dnobs_m,ndesc,ncodes);
+labvec_long=descmat[.,1];
+labvec_short=descmat[.,2];
+aggcode=tcodemat[.,1];
+tcode=tcodemat[.,2];
+defcode=tcodemat[.,3];
+outliercode=tcodemat[.,4];
+seasadjcode=tcodemat[.,5];
+includecode=tcodemat[.,6];
+catcode=tcodemat[.,7];
+
+ @ Convert Namestrings to upper case @
+ i=1; do while i <= rows(namevec);
+  namevec[i]=upper(namevec[i]);
+ i=i+1; endo;
+
+@ Eliminate any leading or trailing blanks @
+namevec=strtriml(namevec);
+namevec=strtrimr(namevec);
+
+@ Deflators @
+pstr_def = "PCEPI";
+ii = namevec .$== pstr_def;
+price_def = selif(datamat',ii)';
+pstr_def_lfe = "PCEPILFE";
+ii = namevec .$== pstr_def_lfe;
+price_def_lfe = selif(datamat',ii)';
+
+@ Form Panel Data set of transformed Data @
+bpdata=0; 
+is=1; do while is <= rows(namevec);
+ if includecode[is] .== 0; goto skipbp_m; endif;
+ x=datamat[.,is];
+ 
+ if defcode[is] .== 1;
+  x = x./price_def;
+  labvec_long[is] = labvec_long[is] $+ "Defl by " $+ pstr_def;
+  labvec_short[is] = "Real " $+ labvec_short[is];
+ endif;
+ if defcode[is] .== 2;
+  x = x./price_def_lfe;
+  labvec_long[is] = labvec_long[is] $+ "Defl by " $+ pstr_def_lfe;
+  labvec_short[is] = "Real " $+ labvec_short[is];
+ endif; 
+ if seasadjcode[is] .== 1;
+   xtmp = x;
+  if tcode[is] .> 3;  @ logs @
+   xtmp = ln(x);
+  endif;
+  {x_sadj,san}=seasadj(xtmp,1.0);
+   if san ./= 1;
+    "Seasonal Adjustment Problem";
+    "  Series namevec[is]";
+    "     Stopping";
+    stop;
+   endif;
+   x = x_sadj;
+   labvec_long[is] = labvec_long[is] $+ " Seasonally Adjusted in Datain ";
+   labvec_short[is] = labvec_short[is] $+ ("SA"); 
+ endif;
+ xq=mtoq(x,caldsm,caldsq,aggcode[is]);
+ y=transx(xq,tcode[is]);
+ y_noa=y;
+ if ioutlier .== 1;          @ Global flag to turn outlier adjustment on and off @
+  if outliercode[is] .== 1;
+   @ namevec[is];;"Checking for Outliers"; @
+   @ -- Check For Outliers  -- @
+   ya=adjout(y,thr1,4);             @ 4 = 1 sided median replacement @
+   if rows(ya) .== 1; goto skipbp_m; endif;
+   y=ya;
+  endif;
+  if outliercode[is] .== 2;
+   @ namevec[is];;"Checking for Outliers"; @
+   @ -- Check For Outliers  -- @
+   ya=adjout(y,thr2,4);             @ 4 = 1 sided median replacement @
+   if rows(ya) .== 1; goto skipbp_m; endif;
+   y=ya;
+  endif;
+ endif;
+  if rows(bpdata) .== 1;
+  bpdata_raw=xq;
+  bpdata=y;
+  bpdata_noa=y_noa;
+  bpnamevec=namevec[is];
+  bplabvec_long=labvec_long[is];
+  bplabvec_short=labvec_short[is];
+  bptcodevec=tcode[is];
+  bpoutliervec=outliercode[is];
+  bpseasadjvec=seasadjcode[is];
+  bpcatcode=catcode[is];
+  bpinclcode=includecode[is];
+ else;
+  bpdata_raw=bpdata_raw~xq;
+  bpdata=bpdata~y;
+  bpdata_noa=bpdata_noa~y_noa;
+  bpnamevec=bpnamevec $| namevec[is];
+  bplabvec_long=bplabvec_long $| labvec_long[is];
+  bplabvec_short=bplabvec_short $| labvec_short[is];
+  bptcodevec=bptcodevec | tcode[is];
+  bpoutliervec=bpoutliervec | outliercode[is];  
+  bpseasadjvec=bpseasadjvec | seasadjcode[is];
+  bpcatcode=bpcatcode | catcode[is];
+  bpinclcode=bpinclcode | includecode[is];
+ endif;
+ skipbp_m:
+is=is+1; endo;
+
+@ --------------- Read In Quarterly Data ---------------- @
+@ Read Data @
+ndesc=2;
+ncodes=6;
+sheet=2;
+{namevec,descmat,tcodemat,datevec,datamat}=readxls(xlsname,sheet,ns_q,dnobs_q,ndesc,ncodes);
+labvec_long=descmat[.,1];
+labvec_short=descmat[.,2];
+tcode=tcodemat[.,1];
+defcode=tcodemat[.,2];
+outliercode=tcodemat[.,3];
+seasadjcode=tcodemat[.,4];
+includecode=tcodemat[.,5];
+catcode=tcodemat[.,6];
+ @ Convert Namestrings to upper case @
+ i=1; do while i <= rows(namevec);
+  namevec[i]=upper(namevec[i]);
+ i=i+1; endo;
+
+@ Eliminate any leading or trailing blanks @
+namevec=strtriml(namevec);
+namevec=strtrimr(namevec);
+
+@ Deflators @
+pstr_def = "PCECTPI";
+ii = namevec .$== pstr_def;
+price_def = selif(datamat',ii)';
+pstr_def_lfe = "JCXFE";
+ii = namevec .$== pstr_def_lfe;
+price_def_lfe = selif(datamat',ii)';
+pstr_def_pgdp = "GDPCTPI";
+ii = namevec .$== pstr_def_pgdp;
+price_def_pgdp = selif(datamat',ii)';
+
+is=1; do while is <= rows(namevec);
+ if includecode[is] .== 0; goto skipbp_q; endif;
+ x=datamat[.,is];
+ 
+ if defcode[is] .== 1;
+  x = x./price_def;
+  labvec_long[is] = labvec_long[is] $+ "Defl by " $+ pstr_def;
+  labvec_short[is] = "Real " $+ labvec_short[is];
+ endif;
+ if defcode[is] .== 2;
+  x = x./price_def_lfe;
+  labvec_long[is] = labvec_long[is] $+ "Defl by " $+ pstr_def_lfe;
+  labvec_short[is] = "Real " $+ labvec_short[is];
+ endif;
+ if defcode[is] .== 3;
+  x = x./price_def_pgdp;
+  labvec_long[is] = labvec_long[is] $+ "Defl by " $+ pstr_def_pgdp;
+  labvec_short[is] = "Real " $+ labvec_short[is];
+ endif; 
+ if seasadjcode[is] .== 1;
+   xtmp = x;
+  if tcode[is] .> 3;  @ logs @
+   xtmp = ln(x);
+  endif;
+  {x_sadj,san}=seasadq(xtmp,1.0);
+   if san ./= 1;
+    "Seasonal Adjustment Problem";
+    "  Series namevec[is]";
+    "     Stopping";
+    stop;
+   endif;
+   x = x_sadj;
+   if tcode[is] .> 3;
+    x = exp(x_sadj);
+   endif;
+   labvec_long[is] = labvec_long[is] $+ " Seasonally Adjusted in Datain ";
+   labvec_short[is] = labvec_short[is] $+ ("SA"); 
+ endif;
+ y=transx(x,tcode[is]);
+ y_noa = y;
+ if ioutlier .== 1;          @ Global flag to turn outlier adjustment on and off @
+  if outliercode[is] .== 1;
+   @ namevec[is];;"Checking for Outliers"; @
+   @ -- Check For Outliers  -- @
+   ya=adjout(y,thr1,4);             @ 4 = 1 sided median replacement @
+   if rows(ya) .== 1; goto skipbp_m; endif;
+   y=ya;
+  endif;
+  if outliercode[is] .== 2;
+   @ namevec[is];;"Checking for Outliers"; @
+   @ -- Check For Outliers  -- @
+   ya=adjout(y,thr2,4);             @ 4 = 1 sided median replacement @
+   if rows(ya) .== 1; goto skipbp_m; endif;
+   y=ya;
+  endif;
+ endif;
+  
+ if rows(bpdata) .== 1;
+  bpdata_raw=x;
+  bpdata=y;
+  bpdata_noa=y_noa;
+  bpnamevec=namevec[is];
+  bplabvec_long=labvec_long[is];
+  bplabvec_short=labvec_short[is];
+  bptcodevec=tcode[is];
+  bpoutliervec=outliercode[is];
+  bpseasadjvec=seasadjcode[is];
+  bpcatcode=catcode[is];
+  bpinclcode=includecode[is];
+ else;
+  bpdata_raw=bpdata_raw~x;
+  bpdata=bpdata~y;
+  bpdata_noa=bpdata_noa~y_noa;
+  bpnamevec=bpnamevec $| namevec[is];
+  bplabvec_long=bplabvec_long $| labvec_long[is];
+  bplabvec_short=bplabvec_short $| labvec_short[is];
+  bptcodevec=bptcodevec | tcode[is];
+  bpoutliervec=bpoutliervec | outliercode[is]; 
+  bpseasadjvec=bpseasadjvec | seasadjcode[is];
+  bpcatcode= bpcatcode | catcode[is];
+  bpinclcode=bpinclcode | includecode[is];
+ endif;
+ skipbp_q:
+is=is+1; endo;
+
+calvec=calvec_q;
+calds=caldsq;
+dnobs=rows(calvec);
+
+@ Reorganize Series so they are in correct order given by Catcode @
+ii=bpcatcode~seqa(1,1,rows(bpcatcode));
+jj=sortc(ii,1);
+jj=jj[.,2];
+bpdata_raw=bpdata_raw[.,jj];
+bpdata=bpdata[.,jj];
+bpdata_noa=bpdata_noa[.,jj];
+bpnamevec=bpnamevec[jj];
+bplabvec_long=bplabvec_long[jj];
+bplabvec_short=bplabvec_short[jj];
+bptcodevec =  bptcodevec[jj];
+bpoutliervec = bpoutliervec[jj];
+bpcatcode = bpcatcode[jj];
+bpinclcode=bpinclcode[jj];
+bpdata_trend = zeros(rows(bpdata),cols(bpdata));
+
+@ If IBPASS == 1; remove low frequency Components @
+bp_trend = zeros(rows(bpdata),cols(bpdata));
+if idemean .> 0;
+ bpdata_unfiltered = bpdata;
+ i=1; do while i <= cols(bpdata);
+ 	 if idemean .== 1;
+    tmp = bw_trend(bpdata_unfiltered[.,i],bw_bw);
+   	bpdata_trend[.,i] = tmp;
+   	bpdata[.,i] = bpdata_unfiltered[.,i] - bpdata_trend[.,i]; 
+   elseif idemean .== 2;
+  	bpdata_trend[.,i] = ones(dnobs,1)*meanc(packr(bpdata[.,i]));
+  	bpdata[.,i] = bpdata_unfiltered[.,i] - bpdata_trend[.,i];
+   endif;
+ 	/*
+ 	str = bplabvec_short[i];
+ 	title(str);
+ 	xy(calvec,bpdata_unfiltered[.,i]~bpdata[.,i]);
+  wait;
+  */
+  i=i+1; endo;
+endif;

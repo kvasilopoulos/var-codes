@@ -1,0 +1,514 @@
+/* Construct Forecasts of Variables at NBER Trough Dates
+   Using a variety of VAR models
+*/
+new;
+outwidth 256;
+library pgraph;
+graphset;
+
+xlsname="c:\\usr\\crisis\\ddisk\\data\\bpea_fac_1.xlsx";                    @ DATA Set (Excel File) @
+outdir="c:\\usr\\crisis\\ddisk\\gss\\out\\";
+figdir="c:\\usr\\crisis\\ddisk\\gss\\fig\\fcst\\";
+
+ident_str = "trough_fcst";
+
+str_figtype = "-c=1 -cf=";
+fig_suffix = ".eps";
+
+clear fac_eta_1_1, fac_eta_1_2, fac_eta_1_3, fac_eta_1_4, fac_eta_1_5, fac_eta_1_6;  
+clear yfit_eta_1_1, yfit_eta_1_2, yfit_eta_1_3, yfit_eta_1_4, yfit_eta_1_5, yfit_eta_1_6;  
+
+@ -- Date Parameters for OLS Estimated of lambda and F -- @
+nest_fy = 1959;
+nest_fq = 3;
+nest_ly = 2007;
+nest_lq = 3;
+
+@ -- Parameters for full sample estimates of F (conditional on Lambda) -- @
+nest_fy_fs = 1959;
+nest_fq_fs = 3;
+nest_ly_fs = 2011;
+nest_lq_fs = 2;
+
+@ -- Factor VAR Sample Period for Estimation -- @
+nest_fy_var = 1959;
+nest_fq_var = 3;
+nest_ly_var = 2007;
+nest_lq_var = 3;
+
+@ Demeaning @
+idemean = 1;   @ 0 Do Nothing
+               1 Eliminate low-frequency by local Demeaning
+               2 Eliminate low-frequency trend by full-sample demeaning @
+@ Bi-Weight Parameter for local demeaning @
+bw_bw = 100;  
+
+@ Factor Parameters @
+nfac = 6;
+nols_it = 200;   @ Number of OLS iterations (for unbalanced panel @
+
+@ VAR Parameters @
+var_method = 1;  @ 1 = full sample; 2 = split sample at 1984:1; 3 = discounted least squares @
+var_lag = 4;     @ Number of lags in factor VAR @
+dfactor = 0.97;  @ Discount Factor for DLS @
+icomp=1;
+ivarmat=0;
+i_const = 0;
+
+ident_str = ident_str $+ "_" $+ ftocv(nfac,1,0) $+ "_" $+ ftocv(idemean,1,0) $+ "_" $+ ftocv(var_lag,1,0) $+ "_" $+ ftocv(var_method,1,0);
+
+@ Forecast Parameters @
+nfwd = 12;     @ Number or periods after trough for forecasts @
+qs = 8;        @ Horizons for Summary Tables report @
+
+
+#include var.prc;
+#include fcst.prc;
+#include bw_trend.prc;
+#include readxls.prc;
+#include var_crisis.prc;
+#include calendar.gss;
+#include datain_1.gss;
+
+
+@ -- Peak Dates for Comparisons -- @
+pdates = 
+(1960~2) |
+(1969~4) |
+(1973~4) |
+(1980~1) |
+(1981~3) |
+(1990~3) |
+(2001~1) |
+(2007~4) ;
+
+@ -- Trough Dates for Comparisons -- @
+tdates = 
+(1961~1) |
+(1970~4) |
+(1975~1) |
+(1980~3) |
+(1982~4) |
+(1991~1) |
+(2001~4) |
+(2009~2) ;
+
+@ String Vector with Dates @
+str_tdates = "";
+i = 1; do while i <= rows(tdates);
+	tmp = "" $+ ftocv(tdates[i,1],4,0) $+ ":" $+ ftocv(tdates[i,2],1,0);
+	if i .== 1;
+	 str_tdates = tmp;
+	else;
+	 str_tdates = str_tdates $| tmp;
+	endif;
+i = i+1; endo;
+
+i_tdates = missmat(rows(tdates),1);  @ Indicators for trough dates @
+i = 1; do while i <= rows(tdates);
+	cdate = tdates[i,1]+(tdates[i,2]-1)/4;
+	i_tdates[i] = minindc(abs(calvec-cdate));
+i = i+1; endo;
+
+"Number of Series in dataset = ";;cols(bpdata);
+nx=cols(bpdata);
+
+@ Estimate Reduced Form Factor and Lambda @
+#include rr_factor.gss;
+
+@ Data, Fitted Values, and Residuals @
+  ydata = bpdata;
+  ydata_unfiltered = bpdata_unfiltered;
+  yfit_rf = fac_rf*lambda_rf';                                     
+
+ @ Some VAR Parameters @
+ ismpl =  nest_fy_var~nest_fq_var~nest_ly_var~nest_lq_var;
+ c1 = ismpl[1,1] + (ismpl[1,2]-1)/4;
+ c2 = ismpl[1,3] + (ismpl[1,4]-1)/4;
+ ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+ tt = seqa(1,1,dnobs);
+ tmp=selif(tt,ii);
+ tfirst_fs = tmp[1];
+ tlast_fs = tmp[rows(tmp)];	
+
+ ismpl =  nest_fy_var~nest_fq_var~1983~4;
+ c1 = ismpl[1,1] + (ismpl[1,2]-1)/4;
+ c2 = ismpl[1,3] + (ismpl[1,4]-1)/4;
+ ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+ tt = seqa(1,1,dnobs);
+ tmp=selif(tt,ii);
+ tfirst_1 = tmp[1];
+ tlast_1 = tmp[rows(tmp)];	
+ 
+ ismpl =  1984~1~nest_ly_var~nest_lq_var;
+ c1 = ismpl[1,1] + (ismpl[1,2]-1)/4;
+ c2 = ismpl[1,3] + (ismpl[1,4]-1)/4;
+ ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+ tt = seqa(1,1,dnobs);
+ tmp=selif(tt,ii);
+ tfirst_2 = tmp[1];
+ tlast_2 = tmp[rows(tmp)];	
+ 
+ @ Construct State Vector Matrix @
+ smat = missmat(dnobs,var_lag*nfac);
+ t = var_lag; do while t <= dnobs;
+  smat[t,1:nfac] = fac_rf[t,.];
+	 i = 1; do while i <= var_lag-1;
+		k = i*nfac;
+		smat[t,k+1:k+nfac] = fac_rf[t-i,.];
+	 i = i + 1; endo;
+ t = t+1; endo;
+
+ ifirst = 1;
+ iy = 1; do while iy <= cols(bpdata);
+   yact = missmat(nfwd+1,rows(i_tdates));    
+   yact_unfiltered = missmat(nfwd+1,rows(i_tdates));  
+   yfrcst = missmat(nfwd+1,rows(i_tdates));   @ First Entry is Trough, h = 0 @
+   yfit = missmat(nfwd+1,rows(i_tdates));
+   ymean = missmat(nfwd+1,rows(i_tdates));
+
+   itr = 1; do while itr <= rows(i_tdates);
+    t_trough = i_tdates[itr];
+    @ Estimate VAR @
+    if var_method .== 1;
+     tfirst = tfirst_fs;
+     tlast = tlast_fs;
+     df = 1.0;
+    elseif var_method .== 2;
+     tmp = tdates[itr,1] + (tdates[itr,2]-1)/4;
+     if tmp .< 1983.999;
+      tfirst = tfirst_1;
+      tlast = tlast_1;
+     else;
+      tfirst = tfirst_2;
+      tlast = tlast_2;
+     endif;
+     df = 1.0;
+    elseif var_method .== 3;
+     tfirst = tfirst_fs;
+     tlast = tlast_fs;
+     df = dfactor;  
+    endif;	
+    {beta,seps,eps,nobs,ndf,q,m,g}=var_crisis(fac_rf,var_lag,tfirst,tlast,i_const,icomp,df,t_trough);
+    @ Set Up System for forecasting @
+    s = smat[t_trough,.]';
+    lam = lambda_rf[iy,.];
+    if var_lag .> 1;
+     lam = lambda_rf[iy,.]~zeros(1,nfac*(var_lag-1));
+    endif;
+    yact[1,itr] = ydata[t_trough,iy];
+    yact_unfiltered[1,itr] = ydata_unfiltered[t_trough,iy];
+    yfit[1,itr] = lam*smat[t_trough,.]';
+    yfrcst[1,itr] = lam*smat[t_trough,.]';   
+    ymean[1,itr] = bpdata_trend[t_trough,iy];
+    i = 1; do while i <= nfwd;
+	    s = m*s;
+      yfrcst[i+1,itr] =lam*s;
+      j = t_trough+i;
+      if j .<= dnobs;
+       yact[i+1,itr] = ydata[j,iy];	
+       yact_unfiltered[i+1,itr] = ydata_unfiltered[j,iy];
+       yfit[i+1,itr] = lam*smat[j,.]';
+       ymean[i+1,itr] = bpdata_trend[j,iy];
+      else;
+       ymean[i+1,itr] = bpdata_trend[rows(bpdata_trend),iy];
+      endif;
+    i = i+1; endo;
+   itr = itr+1; endo;
+   mact = missmat(nfwd+1,1);
+   mact_unfiltered = missmat(nfwd+1,1);
+   mfit = missmat(nfwd+1,1);
+   mfrcst = missmat(nfwd+1,1);
+   m_ymean = missmat(nfwd+1,1);
+   i = 1; do while i <= nfwd+1;
+    mact[i] = meanc(packr(yact[i,1:7]'));
+    mact_unfiltered[i] = meanc(packr(yact_unfiltered[i,1:7]'));
+    mfit[i] = meanc(packr(yfit[i,1:7]'));
+    mfrcst[i] = meanc(packr(yfrcst[i,1:7]'));
+    m_ymean[i] = meanc(packr(ymean[i,1:7]'));
+   i = i + 1; endo;
+   
+   @ Graph Forecasts for Specific Series @
+   slist = 
+   "PAYEMS" ;
+   
+   iser = 1; do while iser .<= rows(slist);
+   	ii = bpnamevec[iy] .$== slist[iser];
+    if ii .== 1;
+    @ Construct 9-panel Plots @
+    trend = seqa(0,1,nfwd+1);
+    xtics(0,12,2,2);
+    cvtname=figdir $+ ident_str $+ "_detail_" $+ slist[iser] $+ fig_suffix;
+    cmdstr=str_figtype $+ cvtname;
+    graphprt(cmdstr);
+    begwind;
+    	window(4,2,0);
+    	 setwind(1);
+    	 i = 1; do while i <= 8;
+    	 	@ str_tmp = bplabvec_short[iy] $+ "\L" $+ ftocv(tdates[i,1],4,0) $+ ":" $+ ftocv(tdates[i,2],1,0); @
+    	  str_tmp = "" $+ ftocv(tdates[i,1],4,0) $+ ":" $+ ftocv(tdates[i,2],1,0);
+    	  title(str_tmp);
+    	  _pltype = 6|1|2;
+    	  _plwidth = 1|1|4;
+    	  _pcolor = 0|1|4;
+    	  _ptitlht = 0.25;
+    	  _pnumht = 0.2;
+    	  _plegctl = 0;
+    	  _pline = 1~6~0~0~20~0~1~0~1;
+    	  ytics(-10.0,5,5,5);
+    	  if iser .== 3;
+      	  ytics(-10.0,10,5,5);  	
+      	endif;   
+    	  if i .== 1;
+    	   _plegctl = 2~7~4.0~1;
+    	   _plegstr = "Actual\000Common Component\000Predicted Common Component";
+    	  endif;
+    	  tmp = 400*(yact[1:nfwd+1,i]~yfit[1:nfwd+1,i]~yfrcst[1:nfwd+1,i]);
+    	  xy(trend,tmp);
+    	  nextwind;
+    	 i = i+1; endo;
+    	 /*
+    	 str_tmp = "Average\L 1961-2001 ";
+       title(str_tmp);
+    	 tmp = mact[2:nfwd+1]~mfit[2:nfwd+1]~mfrcst[2:nfwd+1];
+    	 xy(trend,tmp);
+    	 */
+    	endwind; 
+    	pause(1);
+   endif;
+ iser = iser+1; endo;
+ 
+ @ Save Results @
+  if bptcodevec[iy] .< 4;
+   scl = 1;  
+  else;
+   scl = 100; 
+  endif;
+  if bptcodevec[iy] .== 1;
+   cfrcst = scl*(yfrcst[2:nfwd+1,.]-yfrcst[1,.]);
+   cmfrcst = scl*(mfrcst[2:nfwd+1,.]-mfrcst[1,.]);
+   cymean = scl*(ymean[2:nfwd+1,.]-ymean[1,.]);
+   c_m_ymean = scl*(m_ymean[2:nfwd+1,.]-m_ymean[1,.]);
+   cact_uf =  scl*(yact_unfiltered[2:nfwd+1,.]-yact_unfiltered[1,.]);
+  elseif bptcodevec[iy] .== 2;
+   cfrcst = scl*cumsumc(yfrcst[2:nfwd+1,.]);
+   cmfrcst = scl*cumsumc(mfrcst[2:nfwd+1,.]);
+   cymean = scl*cumsumc(ymean[2:nfwd+1,.]);
+   c_m_ymean = scl*cumsumc(m_ymean[2:nfwd+1,.]);
+   cact_uf = scl*cumsumc(yact_unfiltered[2:nfwd+1,.]);
+  elseif bptcodevec[iy] .== 3;
+   cfrcst = scl*cumsumc(yfrcst[2:nfwd+1,.]);
+   cmfrcst = scl*cumsumc(mfrcst[2:nfwd+1,.]);
+   cymean = scl*cumsumc(ymean[2:nfwd+1,.]);
+   c_m_ymean = scl*cumsumc(m_ymean[2:nfwd+1,.]);
+   cact_uf = scl*cumsumc(yact_unfiltered[2:nfwd+1,.]);
+  elseif bptcodevec[iy] .== 4;
+   cfrcst = scl*(yfrcst[2:nfwd+1,.]-yfrcst[1,.]);
+   cmfrcst = scl*(mfrcst[2:nfwd+1,.]-mfrcst[1,.]);
+   cymean = scl*(ymean[2:nfwd+1,.]-ymean[1,.]);
+   c_m_ymean = scl*(m_ymean[2:nfwd+1,.]-m_ymean[1,.]);
+   cact_uf =  scl*(yact_unfiltered[2:nfwd+1,.]-yact_unfiltered[1,.]);
+  elseif bptcodevec[iy] .== 5;
+   cfrcst = scl*cumsumc(yfrcst[2:nfwd+1,.]);
+   cmfrcst = scl*cumsumc(mfrcst[2:nfwd+1,.]);
+   cymean = scl*cumsumc(ymean[2:nfwd+1,.]);
+   c_m_ymean = scl*cumsumc(m_ymean[2:nfwd+1,.]);
+   cact_uf = scl*cumsumc(yact_unfiltered[2:nfwd+1,.]);
+  elseif bptcodevec[iy] .== 6;
+   cfrcst = scl*cumsumc(yfrcst[2:nfwd+1,.]);
+   cmfrcst = scl*cumsumc(mfrcst[2:nfwd+1,.]);
+   cymean = scl*cumsumc(ymean[2:nfwd+1,.]);
+   c_m_ymean = scl*cumsumc(m_ymean[2:nfwd+1,.]);
+   cact_uf = scl*cumsumc(yact_unfiltered[2:nfwd+1,.]);
+ endif;
+  
+ @ Save Results for future printing @
+ if ifirst .== 1;
+  namestr = bplabvec_short[iy];
+  save_fac_2009 = cfrcst[qs,8]';
+  save_trnd_2009 = cymean[qs,8]';
+  save_fac_avg = cmfrcst[qs]';
+  save_trnd_avg = c_m_ymean[qs]';
+  save_fac_1 = cfrcst[qs,1]';
+  save_trnd_1 = cymean[qs,1]';
+  save_fac_2 = cfrcst[qs,2]';
+  save_trnd_2 = cymean[qs,2]';
+  save_fac_3 = cfrcst[qs,3]';
+  save_trnd_3 = cymean[qs,3]';
+  save_fac_4 = cfrcst[qs,4]';
+  save_trnd_4 = cymean[qs,4]';
+  save_fac_5 = cfrcst[qs,5]';
+  save_trnd_5 = cymean[qs,5]';
+  save_fac_6 = cfrcst[qs,6]';
+  save_trnd_6 = cymean[qs,6]';
+  save_fac_7 = cfrcst[qs,7]';
+  save_trnd_7 = cymean[qs,7]';
+  save_fac_8 = cfrcst[qs,8]';
+  save_trnd_8 = cymean[qs,8]';
+  save_cact_uf_1 = cact_uf[qs,1]';
+  save_cact_uf_2 = cact_uf[qs,2]';
+  save_cact_uf_3 = cact_uf[qs,3]';
+  save_cact_uf_4 = cact_uf[qs,4]';
+  save_cact_uf_5 = cact_uf[qs,5]';
+  save_cact_uf_6 = cact_uf[qs,6]';
+  save_cact_uf_7 = cact_uf[qs,7]';
+  save_cact_uf_8 = cact_uf[qs,8]';  
+  ifirst = 0;
+ else;
+  namestr = namestr $| bplabvec_short[iy];
+  save_fac_2009 = save_fac_2009 | cfrcst[qs,8]';
+  save_trnd_2009 = save_trnd_2009 |  cymean[qs,8]';
+  save_fac_avg = save_fac_avg | cmfrcst[qs]';
+  save_trnd_avg = save_trnd_avg | c_m_ymean[qs]';
+  save_fac_1 = save_fac_1 | cfrcst[qs,1]';
+  save_trnd_1 = save_trnd_1 | cymean[qs,1]';
+  save_fac_2 = save_fac_2 | cfrcst[qs,2]';
+  save_trnd_2 = save_trnd_2 | cymean[qs,2]';
+  save_fac_3 = save_fac_3 | cfrcst[qs,3]';
+  save_trnd_3 = save_trnd_3 | cymean[qs,3]';
+  save_fac_4 = save_fac_4 | cfrcst[qs,4]';
+  save_trnd_4 = save_trnd_4 | cymean[qs,4]';
+  save_fac_5 = save_fac_5 | cfrcst[qs,5]';
+  save_trnd_5 = save_trnd_5 | cymean[qs,5]';
+  save_fac_6 = save_fac_6 | cfrcst[qs,6]';
+  save_trnd_6 = save_trnd_6 | cymean[qs,6]';
+  save_fac_7 = save_fac_7 | cfrcst[qs,7]';
+  save_trnd_7 = save_trnd_7 | cymean[qs,7]';
+  save_fac_8 = save_fac_8 | cfrcst[qs,8]';
+  save_trnd_8 = save_trnd_8 | cymean[qs,8]';
+  save_cact_uf_1 = save_cact_uf_1 | cact_uf[qs,1]';
+  save_cact_uf_2 = save_cact_uf_2 | cact_uf[qs,2]';
+  save_cact_uf_3 = save_cact_uf_3 | cact_uf[qs,3]';
+  save_cact_uf_4 = save_cact_uf_4 | cact_uf[qs,4]';
+  save_cact_uf_5 = save_cact_uf_5 | cact_uf[qs,5]';
+  save_cact_uf_6 = save_cact_uf_6 | cact_uf[qs,6]';
+  save_cact_uf_7 = save_cact_uf_7 | cact_uf[qs,7]';
+  save_cact_uf_8 = save_cact_uf_8 | cact_uf[qs,8]'; 
+  
+  endif;      	
+ 
+iy = iy +1; endo; 
+
+
+save_total_2009 = save_fac_2009+save_trnd_2009;
+save_total_avg = save_fac_avg+save_trnd_avg;
+save_total_1 = save_fac_1 + save_trnd_1;
+save_total_2 = save_fac_2 + save_trnd_2;
+save_total_3 = save_fac_3 + save_trnd_3;
+save_total_4 = save_fac_4 + save_trnd_4;
+save_total_5 = save_fac_5 + save_trnd_5;
+save_total_6 = save_fac_6 + save_trnd_6;
+save_total_7 = save_fac_7 + save_trnd_7;
+save_total_8 = save_fac_8 + save_trnd_8;
+
+save_actual_a = (save_cact_uf_1 + save_cact_uf_2 + save_cact_uf_3 + save_cact_uf_5)/4;
+save_actual_b = (save_cact_uf_1 + save_cact_uf_2 + save_cact_uf_3 + save_cact_uf_5 + save_cact_uf_6 + save_cact_uf_7)/6;  
+
+save_fac_a = (save_fac_1 + save_fac_2 + save_fac_3 +  save_fac_5)/4;
+save_fac_b = (save_fac_1 + save_fac_2 + save_fac_3 +  save_fac_5 + save_fac_6 + save_fac_7)/6;  
+
+save_trnd_a = (save_trnd_1 + save_trnd_2 + save_trnd_3 + save_trnd_5)/4;
+save_trnd_b = (save_trnd_1 + save_trnd_2 + save_trnd_3 + save_trnd_5 + save_trnd_6 + save_trnd_7)/6; 
+
+save_total_a = save_fac_a + save_trnd_a;
+save_total_b = save_fac_b + save_trnd_b;
+
+
+slist = 
+"GDPC96" $|
+"PAYEMS" $|
+"OPHNFB" ;
+
+@ Find indices corresponding to these series @
+i = 1; do while i <= rows(slist);
+	ic = maxindc(bpnamevec .$== slist[i]);
+	if i .== 1;
+	 iser = ic;
+	else;
+	 iser = iser|ic;
+	endif;
+i = i+1; endo;
+
+ofile = outdir $+ ident_str $+ "_SummaryTable.out";
+output file = ^ofile reset; output on;
+
+"";
+"Summary Table";
+iq = 1; do while iq <= rows(qs);
+ "Horizon = ";;qs[iq];
+ "Recession,Source,";;
+ i = 1; do while i <= rows(iser);
+	namestr[iser[i]];;
+	if i .< rows(iser);
+	 ",";;
+	else;
+	 "";
+	endif;
+ i = i+1; endo;
+ 
+ irec = 1; do while irec <= 8;
+	format /rd 4,0;
+	tdates[irec,1];;":";;format /rd 1,0;tdates[irec,2];;",";;
+	"Factors,";;
+	str = "save_fac_" $+ ftocv(irec,1,0);
+	tmp = varget(str);
+	tmp = tmp[iser,.];
+	format /rd 5,1;
+	prtmat_comma(tmp[.,iq]');
+	",Trend,";;
+	str = "save_trnd_" $+ ftocv(irec,1,0);
+	tmp = varget(str);
+	tmp = tmp[iser,.];
+	format /rd 5,1;
+	prtmat_comma(tmp[.,iq]');
+	",Total,";;
+	str = "save_total_" $+ ftocv(irec,1,0);
+	tmp = varget(str);
+	tmp = tmp[iser,.];
+	format /rd 5,1;
+	prtmat_comma(tmp[.,iq]');
+	",,";;
+	j=1; do while j < rows(iser);
+		",";;
+	j = j+1; endo;
+	"";
+ irec = irec+1; endo;
+ "Averages,,";;
+ j=1; do while j < rows(iser);
+		",";;
+ j = j+1; endo;
+	"";
+	"1960-1982,Factors,";;
+	format /rd 5,1;
+	prtmat_comma(save_fac_a[iser,iq]');
+	",Trend,";;
+	format /rd 5,1;
+	prtmat_comma(save_trnd_a[iser,iq]');	
+	",Total,";;
+	format /rd 5,1;
+	prtmat_comma(save_total_a[iser,iq]');	
+	",Actual,";;
+	format /rd 5,1;
+	prtmat_comma(save_actual_a[iser,iq]');			
+	",,";;
+	j=1; do while j < rows(iser);
+		",";;
+	j = j+1; endo;
+	"";
+	"1960-2001,Factors,";;
+	format /rd 5,1;
+	prtmat_comma(save_fac_b[iser,iq]');
+	",Trend,";;
+	format /rd 5,1;
+	prtmat_comma(save_trnd_b[iser,iq]');	
+	",Total,";;
+	format /rd 5,1;
+	prtmat_comma(save_total_b[iser,iq]');	
+	",Actual,";;
+	format /rd 5,1;
+	prtmat_comma(save_actual_b[iser,iq]');		
+	"";"";	
+iq = iq+1; endo;
+
+output off;
+

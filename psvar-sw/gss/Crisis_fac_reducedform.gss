@@ -1,0 +1,811 @@
+/* Crisis_fac_reducedform.gss
+   Carry out some reduced-form calculations for factor model 
+*/
+
+new;
+outwidth 256;
+library pgraph;
+graphset;
+
+xlsname="c:\\usr\\crisis\\ddisk\\data\\bpea_fac_1.xlsx";                    @ DATA Set (Excel File) @
+outdir="c:\\usr\\crisis\\ddisk\\gss\\out\\";
+figdir="c:\\usr\\crisis\\ddisk\\gss\\fig\\rdfit\\";
+
+ident_str = "Reduced_Form";
+
+str_figtype = "-c=1 -cf=";
+fig_suffix = ".eps";
+
+@ -- Date Parameters for OLS Estimated of lambda and F -- @
+nest_fy = 1959;
+nest_fq = 3;
+nest_ly = 2007;
+nest_lq = 3; 
+
+@ -- Parameters for full sample estimates of F (conditional on Lambda) -- @
+nest_fy_fs = 1959;
+nest_fq_fs = 3;
+nest_ly_fs = 2011;
+nest_lq_fs = 2;
+
+@ Demeaning @
+idemean = 1;   @ 0 Do Nothing
+               1 Eliminate low-frequency by local Demeaning
+               2 Eliminate low-frequency trend by full-sample demeaning @
+@ Bi-Weight Parameter for local demeaning @
+bw_bw = 100;
+
+@ Factor Parameters @
+nfac = 6;
+nols_it = 200;  @ Number of OLS iterations (for unbalanced panel @
+
+@ Other Parameters @
+i_const = 0;   @ 0:No Constant,  1:Constant @
+
+@ Other Parameters @
+n_eig = 8;    @ Number of terms for Eigenvalue Calculation @
+n_rmse =15;   @ Number of terms in RMSE calculation (post-peak) @
+
+@ -- Peak Dates for Comparisons -- @
+pdates = 
+(1960~2) |
+(1969~4) |
+(1973~4) |
+(1980~1) |
+(1981~3) |
+(1990~3) |
+(2001~1) |
+(2007~4) ;
+
+@ -- Category Names --- @
+cat_name = 
+"NIPA" $|
+"IP"   $|
+"Emp/Unemp" $|
+"Hous.Starts" $|
+"Orders/Inv/Sales" $|
+"Prices" $|
+"EmpEarning/Productivity" $|
+"Int. Rates" $|
+"Money&Credit" $|
+"StockPrices&Wealth" $|
+"Housing Prices" $|
+"Exch.Rates" $|
+"" $|
+"Other";
+
+#include fcst.prc;
+#include canon.prc;
+#include var.prc;
+#include bw_trend.prc;
+#include calendar.gss;
+#include readxls.prc;
+#include datain_1.gss;
+#include andrews_eos.prc;
+#include y4plot.prc;
+
+"Number of Series in dataset = ";;cols(bpdata);
+nx=cols(bpdata);
+
+
+@ Estimate Factor Model @
+#include rr_factor.gss;
+
+ ydata = bpdata;
+ yfit = fac_rf*lambda_rf';     @ Full-sample fitted values using lam estimated over estimation sample @
+ yres = ydata-yfit;
+
+
+ @ --------------------------------- Graph actual and fitted values -------------------- @
+ 
+ @ Graph Series -- One Panel Each Series -- Full Sample and Last Decade @
+ igraph = 0;
+ inew = 1;
+ _pdate = "";
+ _pltype = 6|1;
+ _pcolor = 0|4|0;
+ _plwidth = 4|4;
+ _ptitlht = 0.25;
+ _pnumht = 0.2;
+ xtics(2000,2012,1,4);
+ i = 1; do while i <= 24;
+  _plegctl = 0;
+  if i .== 1;
+   str = "GDPC96";
+   titstr = "a. GDP (4Q change, percent)";
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+   _plegctl = 1|6|2002|-7;
+   _plegstr = "Actual\000Common Component"; 
+  elseif i .== 2;
+   str = "PCECC96";
+   titstr = "b. Consumption (4Q change, percent)";
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+  elseif i .== 3;
+   str = "PCESVC96";
+   titstr = "c. Consumption - services (4Q change, percent)";  
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+  elseif i .== 4;
+   str = "PNFIC96";
+   titstr = "d. Nonresidential fixed investment (4Q change, percent)";  
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+  elseif i .== 5;
+   str = "INDPRO";
+   titstr = "e. Industrial Production: total (4Q change, percent)";  
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);
+  elseif i .== 6;
+   str = "IP.B51110.S";
+   titstr = "f. Industrial Production: automotive products (4Q change, percent)";    
+   scl = 100; 
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]); 
+  elseif i .== 7;
+   str = "PAYEMS";
+   titstr = "g. Nonfarm empployment (4Q change, percent)";    
+   scl = 100; 
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]); 
+   _plegctl = 1|6|2003|-56;
+   _plegstr = "Actual\000Common Component";
+  elseif i .== 8;
+   str = "UNRATE";
+   titstr = "h. Unemployment rate (4Q change, percent)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);  
+  elseif i .== 9;
+   str = "URATE_ST";
+   titstr = "i. Short-term (< 27 weeks) unemp. rate (4Q change, percent)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);    
+  elseif i .== 10;
+   str = "URATE_LT";
+   titstr = "j. Long-term (>= 27 weeks) unemp. rate (4Q change, percent)";    
+   scl = 1; 
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);   
+  elseif i .== 11;
+   str = "HOUST";
+   titstr = "k. Housing starts (4Q change, percent)";    
+   scl = 100; 
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);  
+  elseif i .== 12;
+   str = "USSTHPI";
+   titstr = "l. Housing prices (OFHEO)(4Q change, percent)";    
+   scl = 100;  
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]);    
+  elseif i .== 13;
+   str = "PCECTPI";
+   titstr = "m. PCE Inflation (4Q change in 400 x change in log prices)";    
+   scl = 400; 
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]); 
+   _plegctl = 1|6|2003|-25;
+   _plegstr = "Actual\000Common Component"; 
+  elseif i .== 14;
+   str = "PCED_GAS";
+   titstr = "n. PCE Energy Inflation (4Q change in 400 x change in log prices)";    
+   scl = 400;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+   {y1,y2,tmp} = y4plot(y1,y2,bptcodevec[ic]); 
+  elseif i .== 15;
+   str = "FEDFUNDS";
+   titstr = "o. Federal funds rate (Quarterly change)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  elseif i .== 16;
+   str = "BOGAMBSL";
+   titstr = "p. Real monetary base (Quarterly change, percent)";    
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+ 	elseif i .== 17;
+   str = "BUSLOANS";
+   titstr = "q. Com. & industrial loans (Quarterly change, percent)";    
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+ 	elseif i .== 18;
+   str = "MED3_TB3M";
+   titstr = "r. TED spread (Level)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+ 	elseif i .== 19;
+   str = "GZ_EBP";
+   titstr = "s. Gilchrist-Zakrajsek spread (Level)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+ 	 _plegctl = 1|6|2003.1|1;
+   _plegstr = "Actual\000Common Component"; 
+  elseif i .== 20;
+   str = "FSPCOM";
+   titstr = "t. S&P 500. (Quarterly Change, Percent)";    
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+ 	elseif i .== 21;
+   str = "MVOL";
+   titstr = "u. VIX (Level)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  elseif i .== 22;
+   str = "DRIWCIL";
+   titstr = "v. SLOOS (Level)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  elseif i .== 23;
+   str = "NWORTH_PDI";
+   titstr = "w. HH Net Worth/Disp. Income (Level)";    
+   scl = 1;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  elseif i .== 24;
+   str = "TLBSHNO" ;
+   titstr = "x. Liab. of Households (4Q change, Percent)"; 
+   scl = 100;
+   ic = maxindc(bpnamevec .$== str);
+ 	 y1 = ydata[.,ic];
+ 	 y2 = yfit[.,ic];
+  endif;  
+  if inew .== 1;
+   inew=0;
+   igraph = igraph+ 1;
+   cvtname=figdir $+ "rffit_summary_" $+ ftocv(igraph,1,0) $+ fig_suffix;
+   cmdstr=str_figtype $+ cvtname;
+   graphprt(cmdstr);
+   begwind;
+   window(3,2,0);
+   setwind(1);
+   iwind = 1;
+  endif;
+   title(titstr);
+ 	 y = scl*(y1~y2);
+   xy(calvec,y);
+   iwind = iwind+1;
+   if iwind .<= 6;
+    nextwind;
+   else;
+    endwind;
+    pause(1.0);
+    inew = 1;
+   endif;
+ i = i+1; endo;
+ endwind;
+ 
+
+ @ -------------------------------- Table of Split-Sample SDs --------------------------------@
+ @ Table 1 -- Compute Variability of Various Subsamples for Selected Series @
+ slist =
+ "GDPC96" $|
+ "PCECC96" $|
+ "GPDIC96" $|
+ "INDPRO" $|
+ "PAYEMS" $|
+ "UNRATE" ;
+
+ ofile = outdir $+ "VariabilityTable1.asc";
+ output file = ^ofile reset; output on;
+ "Series,1959-1983, 1983-2004, 2005-2011,,1959-1983, 1983-2004, 2005-2011";
+ i = 1; do while i <= rows(slist);
+  icol = maxindc(bpnamevec .$== slist[i]);
+  desc = bplabvec_short[icol];
+  x = ydata[.,icol];
+  xf = yfit[.,icol];
+  @ Note: these are first differences ... accumulate to get year-over-year differences @
+  y = missmat(rows(x),1);
+  yf = missmat(rows(xf),1);
+  for t (4,rows(x),1);
+   y[t] = sumc(x[t-3:t]);
+   yf[t] = sumc(xf[t-3:t]);
+  endfor;
+  scl = 100;
+  if i .== rows(slist);
+   scl = 1;
+  endif;
+  ii = calvec .< 1984;
+   y1 = packr(selif(y,ii));
+   yf1 = packr(selif(yf,ii));
+  ii = (calvec .> 1983.99) .* (calvec .< 2005);
+   y2 = packr(selif(y,ii));
+   yf2 = packr(selif(yf,ii));  
+  ii = calvec .> 2004.99;
+   y3 = packr(selif(y,ii));
+   yf3 = packr(selif(yf,ii));
+  rslt1 = scl*((sqrt(meanc(y1.^2)))~(sqrt(meanc(y2.^2)))~(sqrt(meanc(y3.^2))));
+  rslt2 = scl*((sqrt(meanc(yf1.^2)))~(sqrt(meanc(yf2.^2)))~(sqrt(meanc(yf3.^2))));
+  desc;;",";;
+  format /rd 4,1;
+  prtmat_comma_2(rslt1);",";;
+  prtmat_comma(rslt2);
+ i = i+1; endo;
+ "";"";
+ output off;
+ 
+ @ -------------------------------- Eigenvalue Calculation --------------------------------@
+ 
+ ofile = outdir $+ "Eigenvalue_Rslt.asc";
+ output file = ^ofile reset; output on;
+ @ Carry Out Eval Analysis at each date @
+ eval_mat = miss(zeros(dnobs,1),0);
+ t=1; do while t <= ir_last-n_eig;
+ 	tmp = yres[t:t+n_eig-1,.];
+ 	tmp = packr(tmp');
+ 	if rows(tmp) .> 100;
+   cov = tmp'tmp;
+   eval = eigh(cov);
+   eval = sortc(eval,1);
+   eval_mat[t]=eval[n_eig]/sumc(eval);
+  endif;
+ t=t+1; endo;
+ eval_mat = packr(eval_mat);
+ 
+ @ Compute Eigenvalues of Covariance Matrix of YRES over n_eig peak periods @
+ "";
+ "";
+ "Normalized Eigenvalues of Resdiuals -- number of time periods: ";;n_eig;
+ format /rd 5,2;
+ "Date, Normalized Max Eign, Pvalue";
+ eval_rec = miss(zeros(rows(pdates),1),0);
+ i=1; do while i <= rows(pdates); 
+  c1 = pdates[i,1] + (pdates[i,2]-1)/4;
+  ii = (calvec .> c1-.0001);
+  tmp = selif(yres,ii);
+  tmp = tmp[1:n_eig,.];
+  tmp = packr(tmp');
+  cov = tmp'tmp;
+  eval = eigh(cov);
+  eval = sortc(eval,1);
+  tmp = eval[n_eig]/sumc(eval);
+  c1;;tmp;; meanc(eval_mat .>= tmp);
+ i=i+1; endo;
+ ""; "";
+ 
+ @ Carry Out Eval Analysis for all obs past last recession @
+ c1 = 2007 + (4-1)/4;
+ c2 = 2011 + (2-1)/4;
+ ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+ n_eig = sumc(ii);
+ "Number of obs since last peak: ";;sumc(ii);
+  @ Carry Out Eval Analysis at each date @
+  eval_mat = miss(zeros(dnobs,1),0);
+  t=1; do while t <= ir_last-n_eig;
+ 	 tmp = yres[t:t+n_eig-1,.];
+ 	tmp = packr(tmp');
+ 	if rows(tmp) .> 100;
+   cov = tmp'tmp;
+   eval = eigh(cov);
+   eval = sortc(eval,1);
+   eval_mat[t]=eval[n_eig]/sumc(eval);
+  endif;
+ t=t+1; endo;
+ eval_mat = packr(eval_mat);
+ 
+ "";
+ "";
+ "Normalized Eigenvalues of Resdiuals -- number of time periods: ";;n_eig;
+ "Date, Normalized Max Eign, Pvalue";
+ eval_rec = miss(zeros(rows(pdates),1),0);
+ i=rows(pdates); do while i <= rows(pdates); 
+  c1 = pdates[i,1] + (pdates[i,2]-1)/4;
+  ii = (calvec .> c1-.0001);
+  tmp = selif(yres,ii);
+  tmp = tmp[1:n_eig,.];
+  tmp = packr(tmp');
+  cov = tmp'tmp;
+  eval = eigh(cov);
+  eval = sortc(eval,1);
+  tmp = eval[n_eig]/sumc(eval);
+  c1;;tmp;; meanc(eval_mat .>= tmp);
+ i=i+1; endo;
+ ""; "";
+ output off;
+
+@ ---------------------------------- R^2 by Recession ----------------------------- @ 
+ slist = 
+ "GDPC96" $|
+ "PCECC96" $|
+ "PCESVC96" $|
+ "PNFIC96" $|
+ "INDPRO" $|
+ "IP.B51110.S" $|
+ "PAYEMS" $|
+ "UNRATE" $|
+ "URATE_ST" $|
+ "URATE_LT" $|
+ "HOUST" $|
+ "USSTHPI" $|
+ "PCECTPI" $|
+ "PCED_GAS" $|
+ "FEDFUNDS" $|
+ "BOGAMBSL" $|
+ "BUSLOANS" $|
+ "MED3_TB3M" $|
+ "GZ_EBP" $|
+ "FSPCOM" $|
+ "MVOL"$|
+ "DRIWCIL" $|
+ "NWORTH_PDI" $|
+ "TLBSHNO";
+
+
+ str = outdir $+ "Rsquared_selected_series.asc";
+ output file = ^str reset; output on;
+ @ Compute RMSE over Various Dates @
+ k_rmse = 2 + rows(pdates);
+ mse_mat = missmat(rows(slist),k_rmse); @ RMSE @
+ ms_mat = missmat(rows(slist),k_rmse);  @ Root mean square of y @
+ "RSQR by episode, number of periods, n_rmse:";;n_rmse;
+ i=1; do while i <= rows(slist);
+  ic = maxindc(bpnamevec .$== slist[i]);
+ 	u = yres[.,ic];
+ 	y = ydata[.,ic];
+   c2 = 2007 + (3-1)/4;
+   ii = (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,1]=meanc(x[.,1].^2);
+   mse_mat[i,1]=meanc(x[.,2].^2);
+   c1 = 1984 + (1-1)/4;
+   ii = (calvec .> c1-.0001) .* (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,2]=meanc(x[.,1].^2);
+   mse_mat[i,2]=meanc(x[.,2].^2);
+   j=1; do while j <= rows(pdates);
+   	c1 = pdates[j,1] + (pdates[j,2]-1)/4;
+    ii = (calvec .> c1-.0001);
+    x = selif(y~u,ii);
+    x = x[1:n_rmse,.];
+    ms_mat[i,2+j]=meanc(x[.,1].^2);
+    mse_mat[i,2+j]=meanc(x[.,2].^2);
+   j=j+1; endo;
+   rsqr=1-(mse_mat[i,.]./ms_mat[i,.]);
+   format /rd 4,0;
+   i;;",";;
+   bplabvec_short[ic];;",";;format /rd 5,2;prtmat_comma(rsqr);
+ i=i+1; endo;
+ "";"";
+ output off;
+
+ str = outdir $+ "Rsquared_detail.asc";
+ output file = ^str reset; output on;
+ @ Compute RMSE over Various Dates @
+ k_rmse = 2 + rows(pdates);
+ mse_mat = miss(zeros(nx,k_rmse),0); @ RMSE @
+ ms_mat = miss(zeros(nx,k_rmse),0);  @ Root mean square of y @
+ "RSQR by episode, number of periods, n_rmse:";;n_rmse;
+ i=1; do while i <= nx;
+ 	u = yres[.,i];
+ 	y = ydata[.,i];
+   c2 = 2007 + (3-1)/4;
+   ii = (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,1]=meanc(x[.,1].^2);
+   mse_mat[i,1]=meanc(x[.,2].^2);
+   c1 = 1984 + (1-1)/4;
+   ii = (calvec .> c1-.0001) .* (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,2]=meanc(x[.,1].^2);
+   mse_mat[i,2]=meanc(x[.,2].^2);
+   j=1; do while j <= rows(pdates);
+   	c1 = pdates[j,1] + (pdates[j,2]-1)/4;
+    ii = (calvec .> c1-.0001);
+    x = selif(y~u,ii);
+    x = x[1:n_rmse,.];
+    ms_mat[i,2+j]=meanc(x[.,1].^2);
+    mse_mat[i,2+j]=meanc(x[.,2].^2);
+   j=j+1; endo;
+   /*
+    c1 = pdates[rows(pdates),1] + (pdates[rows(pdates),2]-1)/4;
+    ii = (calvec .> c1-.0001);
+    x = selif(y~u,ii);
+    ms_mat[i,2+j]=meanc(x[.,1].^2);
+    mse_mat[i,2+j]=meanc(x[.,2].^2);  
+   */
+   rsqr=1-(mse_mat[i,.]./ms_mat[i,.]);
+   format /rd 4,0;
+   i;;",";;
+   bplabvec_short[i];;",";;format /rd 5,2;prtmat_comma(rsqr);
+ i=i+1; endo;
+ "";"";
+ output off; 
+  
+ str = outdir $+ "RSQR_summary_byCategory.ASC";
+ output file = ^str reset; output on;
+ @ Compute Relative RMSEs for Now versus Other Periods @
+ pctvec = 0.05|0.25|0.50|0.75|0.95;
+ rsqr=1-(mse_mat./ms_mat);
+ rsqr_pct = zeros(rows(pctvec),cols(rsqr));
+ i=1; do while i <= cols(rsqr);
+ 	tmp = packr(rsqr[.,i]);
+ 	rsqr_pct[.,i]=pctile(tmp,pctvec);
+ i=i+1; endo;
+ "Overall Percentages";
+ tmp=pctvec~rsqr_pct;
+ format /rd 5,2;
+ prtmat_comma(tmp);
+ "";"";
+ "Median By Category of Series";
+ rsqr_med = miss(zeros(1,cols(rsqr)),0);
+ j=1; do while j <= rows(cat_name);
+ 	tmp = trunc(bpcatcode);
+ 	jj = tmp .== j;
+ 	if ismiss(jj) .== 0;
+   nseries = sumc(jj);
+ 	 rsqrj = selif(rsqr,jj);
+ 	 i=1; do while i <= cols(rsqrj);
+ 	  tmp = packr(rsqrj[.,i]);
+ 	  rsqr_med[.,i]=pctile(tmp,0.5);
+   i=i+1; endo;
+   cat_name[j];;",";;format /rd 3,0;nseries;;",";;format /rd 5,2;prtmat_comma(rsqr_med);
+  endif;
+ j=j+1; endo;
+ output off;
+ 
+ @ ------------------------------------ Stability of Factor Loadings --------------------------------------- @
+ 
+ 
+ @ Andrews Test @
+ str = outdir $+ "AndrewsEOS_Lambda_Detail.ASC";
+ output file = ^str reset; output on; 
+ "";"";
+ "Andrews EOS Test -- Lamda";
+ "";
+ "Num, Series, 1959-2007Q3, 1984Q1-2007Q3";
+
+ alambda_tst = miss(zeros(nx,2),1);  @ Full Sample and Post 1983 @
+ i=1; do while i <= nx;
+ 	y=ydata[.,i];
+ 	x=fac_rf;
+ 	c1 = 2007 + (4-1)/4;
+ 	ii = calvec .> (c1-.0001);
+  tmp = selif(y~x,ii);
+  tmp=packr(tmp);
+  if ismiss(tmp) .== 0;
+   m = rows(tmp);
+   tmp = packr(y~x);
+   yp=tmp[.,1];
+   xp=tmp[.,2:cols(tmp)];
+   alambda_tst[i,1]=andrews_eos(yp,xp,m);
+   c1 = 1984 + (1-1)/4;
+   ii = (calvec .> c1-.0001); 
+   y = selif(y,ii);
+   x = selif(x,ii);
+   tmp = packr(y~x);
+   yp=tmp[.,1];
+   xp=tmp[.,2:cols(tmp)];
+   alambda_tst[i,2]=andrews_eos(yp,xp,m);
+  endif;
+  format /rd 4,0;
+  i;;",";;
+  bplabvec_short[i];;",";;format /rd 5,2;prtmat_comma(alambda_tst[i,.]);
+ i=i+1; endo;
+ output off;
+
+ @ Summarize Results @
+ str = outdir $+ "AndrewsEOS_Lambda_Summary_" $+ ident_str $+ ".ASC";
+ output file = ^str reset; output on; 
+ "";"";
+ "Summary Statistics for Andrews EOS Lambda";
+ pctvec = 0.05|0.10|0.50;
+ alambda_tst_pct = zeros(rows(pctvec),cols(alambda_tst));
+ i=1; do while i <= cols(alambda_tst);
+ 	tmp = packr(alambda_tst[.,i]);
+ 	alambda_tst_pct[.,i]=meanc(alambda_tst[.,i] .< pctvec');
+ i=i+1; endo;
+ "Fraction Less Than, 1959-2007Q3, 1984Q1-2007Q3";
+ tmp=pctvec~alambda_tst_pct;
+ format /rd 5,2;
+ prtmat_comma(tmp);
+ "";"";
+ "Fraction less than 5%";
+ alambda_tst_med = miss(zeros(1,cols(alambda_tst)),0);
+ 
+ "Category, 1959-2007Q3, 1984Q1-2007Q3";
+ j=1; do while j <= rows(cat_name);
+ 	tmp = trunc(bpcatcode);
+ 	jj = tmp .== j;
+ 	nseries = sumc(jj);
+ 	alambda_tstj = selif(alambda_tst,jj);
+ 	i=1; do while i <= cols(alambda_tstj);
+ 	 tmp = packr(alambda_tstj[.,i]);
+ 	 alambda_tst_med[.,i]=meanc(alambda_tstj[.,i] .< 0.05);
+  i=i+1; endo;
+  cat_name[j];;",";;format /rd 3,0;nseries;;",";;format /rd 5,2;prtmat_comma(alambda_tst_med);
+ j=j+1; endo;
+ output off;
+ 
+ @ ------------------------------------------ VAR Stability ------------------------------------- @ 
+  
+ @ Stability Test Results @
+ fac = fac_rf[.,1:nfac];
+ clear m_1, m_2, m_3, m_4, m_5;
+ clear beta_1, beta_2, beta_3, beta_4, beta_5;
+ clear seps_1, seps_2, seps_3, seps_4, seps_5; 
+ clear v_bs_hom_1, v_bs_hom_2, v_bs_hom_3, v_bs_hom_4, v_bs_hom_5; 
+ clear v_bs_het_1, v_bs_het_2, v_bs_het_3, v_bs_het_4, v_bs_het_5;
+   
+
+ str = outdir $+ "AndrewsEOS_FVAR_Summary.ASC";
+ output file = ^str reset; output on; 
+ 
+ nlag = 1; do while nlag <= 4;
+ "";"";"";"";"";
+ 	"Results for nlag = ";;nlag;
+
+ @ Construct Andrews-EOS Test for VAR @
+  @ Determine Number of Out-of-Sample Periods @
+    x=fac;
+ 	  c1 = 2007 + (4-1)/4;
+ 	  ii = calvec .> (c1-.0001);
+    tmp = selif(x,ii);
+    tmp=packr(tmp);
+    m = rows(tmp);  @ Number of EOS Time Periods @
+ 
+ c1 = 1960 + (3-1)/4;
+ c2 = 2011 + (2-1)/4;
+ ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+ tt = seqa(1,1,dnobs);
+ tmp=selif(tt,ii);
+ tfirst = tmp[1];
+ tlast = tmp[rows(tmp)];	
+ y = fac[tfirst:tlast,1:nfac];
+ x = miss(zeros(rows(y),nlag*nfac),0);
+ lag = 1; do while lag <= nlag;
+ 	j=(lag-1)*nfac;
+ 	x[.,j+1:j+nfac]=fac[tfirst-lag:tlast-lag,1:nfac];
+ lag=lag+1; endo;
+ 
+ n = rows(x)-m;
+ bhat = invpd(x'x)*(x'y);
+ uhat = y-x*bhat;
+ sigma = uhat'uhat/(rows(x)-cols(x));
+ uj = uhat[n+1:n+m,.];
+ sinv=invpd(sigma);
+ c=chol(sinv);
+ ej = uj*c';
+ s = sumc(sumc(ej.^2));
+ ujsave = uj;
+ ejsave = ej;
+ sm=uj'uj/m;
+ sn=uhat[1:n,.]'uhat[1:n,.]/n;
+ 
+ @ Compute Simulations @
+ svec = zeros(n-m+1,1);
+ for j (1,n-m+1,1);
+	ii = ones(n,1);
+	jj = trunc(m/2);
+	ii[j:j+jj-1]=zeros(jj,1);
+	yj = selif(y[1:n,.],ii);
+	xj = selif(x[1:n,.],ii);
+	bj = yj/xj;
+	ujhat = y-x*bj;
+  uj = ujhat[j:j+m-1,.];
+  ej = uj*c';
+  svec[j]= sumc(sumc(ej.^2)); 
+ endfor;
+ 
+ pvalue = meanc(svec .> s);
+ "Andrews EOS, Number of EOS Periods = ";;m;
+ "Andrews EOS Pvalue";; pvalue;
+ "first n obs trace";;sumc(diag(sn));
+ "Last m obs trace";;sumc(diag(sm));
+
+ @ Construct Andrews-EOS Test for VAR @
+   @ Determine Number of Out-of-Sample Periods @
+    x=fac;
+ 	  c1 = 2007 + (4-1)/4;
+ 	  ii = calvec .> (c1-.0001);
+    tmp = selif(x,ii);
+    tmp=packr(tmp);
+    m = rows(tmp);  @ Number of EOS Time Periods @
+ c1 = 1984 + (1-1)/4;
+ c2 = 2011 + (3-1)/4;
+ ii = (calvec .> c1-.0001).*(calvec .< c2+.0001);
+ tt = seqa(1,1,dnobs);
+ tmp=selif(tt,ii);
+ tfirst = tmp[1];
+ tlast = tmp[rows(tmp)];	
+ y = fac[tfirst:tlast,1:nfac];
+ x = miss(zeros(rows(y),nlag*nfac),0);
+ lag = 1; do while lag <= nlag;
+ 	j=(lag-1)*nfac;
+ 	x[.,j+1:j+nfac]=fac[tfirst-lag:tlast-lag,1:nfac];
+ lag=lag+1; endo;
+ x=x~ones(rows(x),1);
+ 
+ n = rows(x)-m;
+ bhat = invpd(x'x)*(x'y);
+ uhat = y-x*bhat;
+ sigma = uhat'uhat/(rows(x)-cols(x));
+ uj = uhat[n+1:n+m,.];
+ sinv=invpd(sigma);
+ c=chol(sinv);
+ ej = uj*c';
+ s = sumc(sumc(ej.^2));
+ ujsave = uj;
+ ejsave = ej;
+ sm=uj'uj/m;
+ sn=uhat[1:n,.]'uhat[1:n,.]/n;
+  
+ @ Compute Simulations @
+ svec = zeros(n-m+1,1);
+ for j (1,n-m+1,1);
+	ii = ones(n,1);
+	jj = trunc(m/2);
+	ii[j:j+jj-1]=zeros(jj,1);
+	yj = selif(y[1:n,.],ii);
+	xj = selif(x[1:n,.],ii);
+	bj = yj/xj;
+	ujhat = y-x*bj;
+  uj = ujhat[j:j+m-1,.];
+  ej = uj*c';
+  svec[j]= sumc(sumc(ej.^2)); 
+ endfor;
+ 
+ pvalue = meanc(svec .> s);
+ "Andrews EOS, Number of EOS Periods = ";;m;
+ "Andrews EOS Pvalue";; pvalue;
+ "first n obs trace";;sumc(diag(sn));
+ "Last m obs trace";;sumc(diag(sm));
+ 
+ 
+ nlag=nlag+1; endo;
+ output off;
+ 

@@ -1,0 +1,746 @@
+/* Sfactor_1.gss
+   Structural Factor Shocks
+*/
+
+new;
+outwidth 256;
+library pgraph;
+graphset;
+xlsname="c:\\usr\\crisis\\ddisk\\data\\bpea_fac_1.xlsx";                    @ DATA Set (Excel File) @
+xlsname_inst="c:\\usr\\crisis\\ddisk\\data\\bpea_inst_1_corrected.xlsx";     @ DATA Set (Excel File) --- Corrected Data (see Read.me) @ */
+/* xlsname_inst="c:\\usr\\crisis\\ddisk\\data\\bpea_inst_1_original.xlsx";   @ DATA Set (Excel File) --- Original/Uncorrected Data (see Read.me) @ 
+outdir="c:\\usr\\crisis\\ddisk\\gss\\supplement\\out\\";
+figdir="c:\\usr\\crisis\\ddisk\\gss\\supplement\\fig\\sfac\\";
+
+ofile_decline = outdir $+ "stactor_table_corrected.out";
+/* ofile_decline = outdir $+ "stactor_table_original.out"; */
+
+clear fac_eta_1_1, fac_eta_1_2, fac_eta_1_3, fac_eta_1_4, fac_eta_1_5, fac_eta_1_6;  
+clear yfit_eta_1_1, yfit_eta_1_2, yfit_eta_1_3, yfit_eta_1_4, yfit_eta_1_5, yfit_eta_1_6;  
+clear fimp_eta_1_1;
+
+@ -- Date Parameters for OLS Estimated of lambda and F -- @
+nest_fy = 1959;
+nest_fq = 3;
+nest_ly = 2007;
+nest_lq = 3;
+
+@ -- Parameters for full sample estimates of F (conditional on Lambda) -- @
+nest_fy_fs = 1959;
+nest_fq_fs = 3;
+nest_ly_fs = 2011;
+nest_lq_fs = 2;
+
+@ -- Factor VAR Sample Period -- @
+nest_fy_var = 1959;
+nest_fq_var = 3;
+nest_ly_var = 2011;
+nest_lq_var = 2;
+
+
+@ Demeaning @
+idemean = 1;   @ 0 Do Nothing
+               1 Eliminate low-frequency by local Demeaning
+               2 Eliminate low-frequency trend by full-sample demeaning @
+@ Bi-Weight Parameter for local demeaning @
+bw_bw = 100;
+   
+@ Factor Parameters @
+nfac = 6;
+nols_it = 200;   @ Number of OLS iterations (for unbalanced panel @
+
+n_rmse =15;   @ Number of terms in RMSE calculation (post-peak) @
+
+@ VAR Parameters @
+var_method = 1;  @ 1 = full sample;  @
+var_lag = 4;     @ Number of lags in factor VAR @
+icomp=1;
+ivarmat=0;
+i_const = 0;     @ 0 = do not include constant in VAR @
+nimp = 100;      @ Number of IRF to Compute @
+
+if var_method ./= 1;
+ "Factor_VAR.gss uses time-invariant VAR -- stopping ";
+ stop;
+endif;
+
+@ Forecast Parameters @
+nfwd = 20;       @ Number or periods after trough for forecasts @
+qs = 4|8|12;   @ Horizons for Summary Tables report @
+
+
+@ -- Category Names --- @
+cat_name = 
+"NIPA" $|
+"IP"   $|
+"Emp/Unemp" $|
+"Hous.Starts" $|
+"Orders/Inv/Sales" $|
+"Prices" $|
+"EmpEarning/Productivity" $|
+"Int. Rates" $|
+"Money&Credit" $|
+"StockPrices&Wealth" $|
+"Housing Prices" $|
+"Exch.Rates" $|
+"" $|
+"Other";
+
+#include canon.prc;
+#include var.prc;
+#include fcst.prc;
+#include readxls.prc;
+#include bw_trend.prc;
+#include y4plot.prc;
+#include est_eta.prc;
+#include calendar.gss;
+#include datain_1.gss;
+#include datain_3.gss;
+
+@ -- Peak Dates for Comparisons -- @
+pdates = 
+(1960~2) |
+(1969~4) |
+(1973~4) |
+(1980~1) |
+(1981~3) |
+(1990~3) |
+(2001~1) |
+(2007~4) ;
+
+@ -- Trough Dates for Comparisons -- @
+tdates = 
+(1961~1) |
+(1970~4) |
+(1975~1) |
+(1980~3) |
+(1982~4) |
+(1991~1) |
+(2001~4) |
+(2009~2) ;
+
+@ String Vector with Dates @
+str_tdates = "";
+i = 1; do while i <= rows(tdates);
+	tmp = "" $+ ftocv(tdates[i,1],4,0) $+ ":" $+ ftocv(tdates[i,2],1,0);
+	if i .== 1;
+	 str_tdates = tmp;
+	else;
+	 str_tdates = str_tdates $| tmp;
+	endif;
+i = i+1; endo;
+
+i_tdates = missmat(rows(tdates),1);  @ Indicators for trough dates @
+i = 1; do while i <= rows(tdates);
+	cdate = tdates[i,1]+(tdates[i,2]-1)/4;
+	i_tdates[i] = minindc(abs(calvec-cdate));
+i = i+1; endo;
+
+
+"Number of Series in dataset = ";;cols(bpdata);
+nx=cols(bpdata);
+
+@ Estimate Reduced Form Factor and Lambda @
+#include rr_factor.gss;
+
+@ Data, Fitted Values, and Residuals @
+  ydata = bpdata;
+  yfit_rf = fac_rf*lambda_rf';                                     
+  yres_rf = ydata-yfit_rf;
+
+
+@ Estimate VAR for Factors @
+  /* m = companion matrix without constant
+     m_const = companion matrix with constant @ Last Element is constant @
+     seps = covariance matrix of residuals
+     eps = residuals
+     eps_lr = long-run residuals .. [I - Phi1 - ... - Phin]^-1 * eps;
+  */
+#include factor_var.gss;
+
+@ Construct Year-over-Year Differences @
+ydata_4 = miss(zeros(dnobs,nx),0);
+yfit_rf_4 = miss(zeros(dnobs,nx),0);
+yres_rf_4 = miss(zeros(dnobs,nx),0);
+i=1; do while i <= nx;
+	{tmp1,tmp2,tmp3}= y4plot(ydata[.,i],yfit_rf[.,i],bptcodevec[i]);
+	ydata_4[.,i]=tmp1;
+	yfit_rf_4[.,i]=tmp2;
+	yres_rf_4[.,i]=tmp3;
+i=i+1; endo;
+
+@ Compute Structural Shocks @
+
+format /rd 8,3;
+
+@ Set output files @
+output file = ^ofile_decline reset; output on;
+
+
+
+istop = 0;
+
+@ -------------------------------------------- OIL -------------------------------- @
+ @ -------- Hamilton Oil Indicator ---------- @
+  z = h_oil;
+  {eta_oil,r2,pvalue}=est_eta(z,eps,1);
+ 
+  eta_1 = eta_oil;
+  ident_str = "oil_hamilton";
+  Snames = "oil_hamilton";
+  @ Series to Plot @
+  irf_names =
+  "WPU0561" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "OPHNFB" $|
+  "FEDFUNDS" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+
+ #include summary_1_supplement.gss;
+ eta_oil_ham = irf_sign*eta_oil; 
+ 
+
+  @ ---------- Killian Oil Indicator ----------- @
+  z = killian_opec;
+  {eta_oil,r2,pvalue}=est_eta(z,eps,1);
+
+  eta_1 = eta_oil;
+  ident_str = "oil_killian";
+  Snames = "oil_killian";
+  @ Series to Plot @
+  irf_names =
+  "WPU0561" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "OPHNFB" $|
+  "FEDFUNDS" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+ #include summary_1_supplement.gss;
+ eta_oil_killian = irf_sign*eta_oil;
+
+@ ---------- Ramey Vine Oil Indicator ----------- @
+  z = rv_oil;
+ {eta_oil,r2,pvalue}=est_eta(z,eps,1);
+
+  eta_1 = eta_oil;
+  ident_str = "oil_rv";
+  Snames = "oil_rv";
+  @ Series to Plot @
+  irf_names =
+  "WPU0561" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "OPHNFB" $|
+  "FEDFUNDS" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+ #include summary_1_supplement.gss;
+ eta_oil_rv = irf_sign*eta_oil;
+
+ @ --------------------------- Monetary Policy Shock ----------------------------- @
+  
+  @ ---- Romer and Romer 2004 --- @
+  z = rr_aer04;
+  {eta_money,r2,pvalue}=est_eta(z,eps,1); 
+
+  eta_1 = eta_money;
+  ident_str = "money_RR";
+  Snames = "money_RR";
+  @ Series to Plot @
+  irf_names =
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "TNWBSHNO" $|
+  "OPHNFB" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+ #include summary_1_supplement.gss;
+ eta_money_rr = irf_sign*eta_money;
+
+@ -- Smets-Wouters eps_r shock -- @
+  z = eps_r;
+  {eta_money,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_money;
+  ident_str = "money_sw";
+  Snames = "money_sw";
+  @ Series to Plot @
+  irf_names =
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "TNWBSHNO" $|
+  "OPHNFB" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_money_sw = irf_sign*eta_money;
+
+  
+ @ -- Sims-Zha -- @
+  z = sz_ms;
+  {eta_money,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_money;
+  ident_str = "money_sz";
+  Snames = "money_sz";
+  @ Series to Plot @
+  irf_names =
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "TNWBSHNO" $|
+  "OPHNFB" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+ #include summary_1_supplement.gss;
+ eta_money_sz = irf_sign*eta_money;
+
+@ -- GSS ---@
+  z = gss;
+  {eta_money,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_money;
+  ident_str = "money_gss";
+  Snames = "money_gss";
+  @ Series to Plot @
+  irf_names =
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "TNWBSHNO" $|
+  "OPHNFB" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_money_gss = irf_sign*eta_money;
+
+ 
+  @ --------------------------- Productivity Shock ----------------------------- @
+  @ -- Prod Shock -- Fernald Utilization Adj TFP -- @
+  z = dtfp_util;
+  {eta_prod,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_prod;
+  ident_str = "prod_fernald";
+  Snames = "prod_fernald";
+  @ Series to Plot @
+  irf_names =
+  "OPHNFB" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "FEDFUNDS" $|
+  "TNWBSHNO" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+  eta_prod_fernald = irf_sign*eta_prod; 
+  
+  istr = "OPHNFB";
+  ii = bpnamevec .$== istr;
+  lam = selif(lambda_rf,ii);
+  z = eps_lr*lam';
+  {eta_prod,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_prod;
+  ident_str = "prod_gali";
+  Snames = "prod_gali";
+  @ Series to Plot @
+  irf_names =
+  "OPHNFB" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "FEDFUNDS" $|
+  "TNWBSHNO" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_prod_gali = irf_sign*eta_prod;
+ 
+@ -- Prod Shock -- SW -- @
+  z = eps_a;
+  {eta_prod,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_prod;
+  ident_str = "prod_sw";
+  Snames = "prod_sw";
+  @ Series to Plot @
+  irf_names =
+  "OPHNFB" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "FEDFUNDS" $|
+  "TNWBSHNO" $|
+  "HOUST" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_prod_sw = irf_sign*eta_prod;
+ 
+ @ ------------------------------------ Uncertainty --------------------------- @ 
+ 
+ @ -- Uncertainty -- Vix -- @
+  z = vix;
+  {eta_finunc,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_finunc;
+  ident_str = "unc_vix";
+  Snames = "unc_vix";
+  @ Series to Plot @
+  irf_names =
+  "MVOL" $|
+  "POLUNC" $|
+  "MED3_TB3M" $|
+  "GZ_EBP" $|
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_vix = irf_sign*eta_finunc;
+ 
+ 
+  @ -- Uncertainty -- policy -- @
+  z = polunc;
+  {eta_polunc,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_polunc;
+  ident_str = "unc_pol";
+  Snames = "unc_pol";
+  @ Series to Plot @
+  irf_names =
+  "POLUNC" $|
+  "MVOL" $|
+  "MED3_TB3M" $|
+  "GZ_EBP" $|
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_polunc = irf_sign*eta_polunc;
+ 
+ @ ------------------- Spreads -------------------------- @
+ 
+  @ -- GZ EBP -- @
+  z = gz_ebp;
+  {eta_spread,r2,pvalue}=est_eta(z,eps,1); 
+ 
+  eta_1 = eta_spread;
+  ident_str = "spread_gz_ebp";
+  Snames = "spread_gz_ebp";
+  @ Series to Plot @
+  irf_names =
+  "GZ_EBP" $|
+  "MED3_TB3M" $|
+  "CP90_TBILL" $|
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_spread_gz = irf_sign*eta_spread;
+ 
+ @ -- Ted Spread -- @
+  z = ted_spr;
+  {eta_spread,r2,pvalue}=est_eta(z,eps,1); 
+
+  eta_1 = eta_spread;
+  ident_str = "spread_ted";
+  Snames = "spread_ted";
+  @ Series to Plot @
+  irf_names =
+  "MED3_TB3M" $|
+  "GZ_EBP" $|
+  "CP90_TBILL" $|
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+  eta_spread_ted = irf_sign*eta_spread;
+
+  @ ----------- Bank Lending ------------------ @
+  z = bcdz_bl;
+  {eta_bl,r2,pvalue}=est_eta(z,eps,1); 
+
+  eta_1 = eta_bl;
+  ident_str = "bl_bcdz";
+  Snames = "bl_bcdz";
+  @ Series to Plot @
+  irf_names =
+  "DRIWCIL" $|
+  "MED3_TB3M" $|
+  "GZ_EBP" $|
+  "FEDFUNDS" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "MVOL" ;
+ 
+  #include summary_1_supplement.gss;
+  eta_bl_bcdz = irf_sign*eta_bl;
+
+@ ------------------------------ Fiscal ---------------------------------- @
+  @ RAMEY Spending @
+  z = r_news;
+  {eta_fiscal,r2,pvalue}=est_eta(z,eps,1);
+  z_fiscal_ramey = z;
+ 
+  eta_1 = eta_fiscal;
+  ident_str = "Fiscal_Ramey";
+  Snames = "Fiscal_Ramey";
+  @ Series to Plot @
+  irf_names =
+  "FGCEC96" $|
+  "GCEC96" $|
+  "SLCEC96" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "OPHNFB" $|
+  "FEDFUNDS" ;
+ 
+  #include summary_1_supplement.gss;
+  eta_fiscal_ramey = irf_sign*eta_fiscal;
+  
+  @ ------Fisher-Peters Excess Returns --------@
+  z = fp_exret;
+  {eta_fiscal,r2,pvalue}=est_eta(z,eps,1);
+  z_fiscal_ramey = z;
+ 
+  eta_1 = eta_fiscal;
+  ident_str = "Fiscal_fp";
+  Snames = "Fiscal_fp";
+  @ Series to Plot @
+  irf_names =
+  "FGCEC96" $|
+  "GCEC96" $|
+  "SLCEC96" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "OPHNFB" $|
+  "FEDFUNDS" ;
+ 
+  #include summary_1_supplement.gss;
+  eta_fiscal_fp = irf_sign*eta_fiscal;
+
+    
+ @ Romer and Romer Exogenous Taxes @
+  z = exonr;
+  {eta_fiscal,r2,pvalue}=est_eta(z,eps,1);
+ 
+  eta_1 = eta_fiscal;
+  ident_str = "Fiscal_RR";
+  Snames = "Fiscal_RR";
+  @ Series to Plot @
+  irf_names =
+  "GRECPT" $|
+  "GCEC96" $|
+  "SLCEC96" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "OPHNFB" $|
+  "FEDFUNDS" ;
+ 
+  #include summary_1_supplement.gss;
+ eta_fiscal_rr = irf_sign*eta_fiscal;
+ 
+ @ ---------------------------------------------------------------------@
+ @ Construct Covariance Matrix of Shock Over Different Sample Periods @
+ name_str = 
+ "eta_oil_ham" $|
+ "eta_oil_killian" $|
+ "eta_oil_rv" $|
+ "eta_money_rr" $|
+ "eta_money_sw" $|
+ "eta_money_sz" $|
+ "eta_money_gss" $|
+ "eta_prod_fernald" $|
+ "eta_prod_gali" $|
+ "eta_prod_sw" $|
+ "eta_vix" $|
+ "eta_polunc" $|
+ "eta_spread_gz" $|
+ "eta_spread_ted" $|
+ "eta_bl_bcdz" $|
+ "eta_fiscal_ramey" $|
+ "eta_fiscal_fp" $|
+ "eta_fiscal_rr" ;
+ 
+ i = 1; do while i <= rows(name_str);
+ 	str = name_str[i];
+ 	x = varget(str);
+ 	if i .== 1;
+ 	 y = x;
+ 	else;
+ 	 y = y~x;
+ 	endif;
+ i = i+1; endo;
+ 
+ tmp = packr(calvec~y);
+ calp = tmp[.,1];
+ yp = tmp[.,2:cols(tmp)];
+ ypn = (yp-meanc(yp)')./stdc(yp)';
+ cor = ypn'ypn/(rows(ypn)-1);
+ 
+ "Correlation Matrix of shocks -- full sample";
+ "Series";
+ format /rd 2,0;
+ i = 1; do while i <= rows(name_str);
+ 	i;;",";;name_str[i];
+ i = i+1; endo;
+ "";;"";;
+ "Correlation Matrix";
+ tmp = seqa(1,1,rows(name_str));
+ ",";;prtmat_comma(tmp');
+ i = 1; do while i <= rows(name_str);
+ 	format /rd 2,0;
+ 	i;;",";;
+ 	tmp = cor[i,.];
+ 	format /rd 4,2;
+ 	prtmat_comma(tmp);
+ i = i+1; endo;
+ 
+ @ Construct First and Second PC of Spread and Uncertainty Shocks @ 
+
+ @ -- First and Second PC of Uncertainty and Spreads --- @
+ @ Construct Historical Decomps for various groups of shocks  @
+ irf_names =
+  "WPU0561" $|
+  "GDPC96" $|
+  "GDPCTPI" $|
+  "PAYEMS" $|
+  "HOUST" $|
+  "DRIWCIL" $|
+  "FEDFUNDS" $|
+  "MED3_TB3M" $|
+  "MVOL" ;
+ 
+ name_str = 
+ "eta_vix" $|
+ "eta_polunc" $|
+ "eta_bl_bcdz" $|
+ "eta_spread_gz" $|
+ "eta_spread_ted" ;
+ 
+ 
+ i = 1; do while i <= rows(name_str);
+ 	str = name_str[i];
+ 	x = varget(str);
+ 	if i .== 1;
+ 	 z = x;
+ 	else;
+ 	 z = z~x;
+ 	endif;
+ i = i+1; endo;
+ tr = seqa(1,1,dnobs);
+ tmp = packr(tr~z);
+ trp = tmp[.,1];
+ zp = tmp[.,2:cols(tmp)];
+ {zp_pc,tmp,eigval,ssr}=pc_factor(zp,2);
+ z = missmat(dnobs,cols(zp_pc));
+ z[trp[1]:trp[rows(trp)],.] = zp_pc;
+ 
+ {eta_pc1,r2,pvalue}=est_eta(z[.,1],eps,1); 
+ eta_1=eta_pc1;
+ ident_str = "pc_1";
+ Snames = "pc_1";
+
+ #include summary_1_supplement.gss; 
+ @ Figure 3 @
+  cvtname=figdir $+ "Struc_decomp_y4_gdp_emp_" $+ ident_str $+ ".emf";
+  cmdstr="-c=8 -cf=" $+ cvtname;
+  graphprt(cmdstr);
+  _pltype = 6|1|6;
+  _pcolor = 0|4|0;
+  _plwidth = 1|4|1;
+  xtics(1955,2015,10,10);
+  begwind;
+  window(2,1,0);
+  setwind(1);
+  _ptitlht = 0.20;
+  _pnumht = 0.15;
+  _plegctl = 1~5~1956~-7.6;
+  _plegstr = "Actual\000Common component from uncertainty and liquidity/risk pc";
+  _pline = 1~6~1960~0~2012~0~1~0~0;
+  ii = bpnamevec .$== "GDPC96";
+  nn = maxindc(ii);
+  ydat = 100*ydata_4[.,nn];
+  yf = 100*yfit4[.,nn];
+  str = "a. GDP";
+  title(str);
+  xy(calvec,ydat~yf);
+  nextwind;
+   _plegctl = 0;
+  ii = bpnamevec .$== "PAYEMS";
+  nn = maxindc(ii);
+  ydat = 100*ydata_4[.,nn];
+  yf = 100*yfit4[.,nn];
+  str = "b. Nonfarm employment";
+  title(str);
+  xy(calvec,ydat~yf);
+  endwind;
+
+  pause(0.5);
+ 
+  
+ @ ------------- Results for PC2 ------------- @
+ {eta_pc2,r2,pvalue}=est_eta(z,eps,2); 
+ eta_1 = eta_pc2;
+ ident_str = "pc_2";
+ Snames = "pc_2";
+ 
+ @ Get Structural Decomposition @
+ istop = 1;
+ #include summary_1_supplement.gss;
+ 
+ output off;

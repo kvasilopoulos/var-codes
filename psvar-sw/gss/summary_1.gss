@@ -1,0 +1,27 @@
+
+"";"";
+" -------------------- Results for Indentification = ";;ident_str;;"  --------------";
+
+@ Get Structural Decomposition @
+ "";"";"R2 for regression of Z onto eps ";;format /rd 5,2; r2;
+ n = rows(packr(z~eps));
+ fstat = (n-cols(eps))*(r2/(1-r2))/cols(eps);
+ "nobs and F-stat for regression of Z onto eps ";;format /rd 5,2; n;; fstat;
+ "Pvalue for OID ";;pvalue;
+
+  
+ #include struct_decmp.gss; 
+ #include gdp_changes.gss;
+
+ @ Construct and Plot Forecast Decomp @
+ #include fcst_decomp.gss;
+ "";
+ "Summary Results for Table 8";
+ format /rd 4,1;
+ prtmat_comma_2(rslt);
+ ",";;
+ prtmat_comma(rslt1);
+ "";"";
+
+ @ IRF Graph @
+ #include irf_sign.gss;

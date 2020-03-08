@@ -1,0 +1,81 @@
+slist = 
+"GDPC96" $|
+"PAYEMS" ;
+
+/* Key Parameters
+   lamda_rf -- factor loadings
+   m = companion matrix
+   fac_eta_1 = factor computed from eta_1 shocks
+   fac_eta_2 = factor computed from eta_2 shocks
+   fac_rf = reduced form factors (except for transients from initial conditions; fac_rf = fac_eta_1 + fac_eta_2
+   
+*/
+
+@ Compute State Vector Corresponding to all shocks and corresonding to eta_1 @
+ smat = missmat(dnobs,var_lag*nfac);
+ smat_1 = missmat(dnobs,var_lag*nfac);
+ t = var_lag; do while t <= dnobs;
+  smat[t,1:nfac] = fac_rf[t,.];
+  smat_1[t,1:nfac] = fac_eta_1[t,.];
+	 i = 1; do while i <= var_lag-1;
+		k = i*nfac;
+		smat[t,k+1:k+nfac] = fac_rf[t-i,.];
+		smat_1[t,k+1:k+nfac] = fac_eta_1[t-i,.];
+	 i = i + 1; endo;
+ t = t+1; endo;
+ 
+ @ For each Series in slist compute forecast @
+ iy = 1; do while iy <= rows(slist);
+   ii = bpnamevec .$== slist[iy];
+   jj = maxindc(ii);
+   lam = lambda_rf[jj,.];
+   if var_lag .> 1;
+     lam = lambda_rf[jj,.]~zeros(1,nfac*(var_lag-1));
+   endif;	
+   yact = missmat(nfwd+1,rows(i_tdates));    
+   yact_unfiltered = missmat(nfwd+1,rows(i_tdates));  
+   yfrcst = missmat(nfwd+1,rows(i_tdates));   @ First Entry is Trough, h = 0 @
+   yfit = missmat(nfwd+1,rows(i_tdates));
+   yfrcst_1 = missmat(nfwd+1,rows(i_tdates));   @ First Entry is Trough, h = 0 @
+   yfit_1 = missmat(nfwd+1,rows(i_tdates));
+
+   itr = 1; do while itr <= rows(i_tdates);
+    t_trough = i_tdates[itr];
+    @ Set Up System for forecasting @
+    s = smat[t_trough,.]';
+    s_1 = smat_1[t_trough,.]';   
+    yact[1,itr] = ydata[t_trough,jj];
+    yfit[1,itr] = lam*smat[t_trough,.]';
+    yfrcst[1,itr] = lam*smat[t_trough,.]';   
+    yfit_1[1,itr] = lam*smat_1[t_trough,.]';
+    yfrcst_1[1,itr] = lam*smat_1[t_trough,.]';     
+    i = 1; do while i <= nfwd;
+	    s = m*s;
+	   	s_1 = m*s_1;
+      yfrcst[i+1,itr] =lam*s;
+      yfrcst_1[i+1,itr] =lam*s_1;
+      j = t_trough+i;
+      if j .<= dnobs;
+       yact[i+1,itr] = ydata[j,jj];	
+       yfit[i+1,itr] = lam*smat[j,.]';
+       yfit_1[i+1,itr] = lam*smat_1[j,.]';
+      endif;
+    i = i+1; endo;
+   itr = itr+1; endo;
+      	
+    	@ Construct Implied forecast growth 2009Q2 to 2011Q2 @
+    	"Forecast Growth 2009Q2 to 2011Q2";
+    	"Series = ";;slist[iy];
+    	"Actual,Factor Fitted Value,Factor Forecasted Value,Shock Fitted Value,Shock Forecasted Value";
+    	tmp = 100*sumc(yact[2:9,8]~yfit[2:9,8]~yfrcst[2:9,8]~yfit_1[2:9,8]~yfrcst_1[2:9,8]);
+    	format /rd 4,1;
+    	prtmat_comma(tmp');
+    	@ Save Results for Printing in Format used in Table @
+    	if iy .== 1;
+    	 rslt1 = 100*sumc(yfrcst_1[2:9,8]);
+    	else;
+    	 rslt1 = rslt1~100*sumc(yfrcst_1[2:9,8]);
+    	endif;
+ iy = iy+1; endo;
+ "";"";"";
+

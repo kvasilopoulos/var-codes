@@ -1,0 +1,214 @@
+ @ Write Companion System in terms of eta instead of eps @
+ /* Model is 
+              S(t) = M*S(t-1) + G*eps, G = (I 0)'
+              eps = H*eta
+              
+              So that 
+              
+              S(t) = M*s(t-1) + (GH)*eta
+ */
+ @ Identified eta shocks are eta_1 ... addition shocks formed by construction are eta_2 @
+ tmp = packr(eta_1~eps);
+ yp = tmp[.,1:cols(eta_1)];
+ xp = tmp[.,cols(eta_1)+1:cols(eta_1)+nfac];
+ bp = yp/xp;
+ hinv = zeros(nfac,nfac);      @ eta(t) = hinv*eps(t) @
+ hinv[1:cols(eta_1),.]=bp';    @ First rows yield eta_1 @
+ @ Find Other rows so that eta_2 is uncorrelated with eta_1 @ 
+  tmp=eye(nfac)-bp*invpd(bp'bp)*bp';
+  {va,ve}=eighv(tmp);
+  bp_perp = ve[.,cols(bp)+1:nfac]; 
+  sxx = bp'seps*bp;
+  sxy = bp'seps*bp_perp;
+  hinv[cols(eta_1)+1:nfac,.]=bp_perp'-sxy'invpd(sxx)*bp';
+  h = inv(hinv);
+  eta = eps*hinv';
+ @ Normalize ETA to have unit standard Deviation @
+ etap = packr(eta);
+ s_eta = stdc(etap);
+ eta = eta./s_eta';
+ h = h.*s_eta';
+  
+  /*
+  eta_2t = est_eta(0,eta_1,eps);
+  eta_2 = eta[.,2:nfac];
+  tmp = packr(eta_1~eta_2);
+  tmpt = packr(eta_1~eta_2t);
+  e1=tmp[.,1];
+  e2=tmp[.,2:nfac];
+  e2t=tmpt[.,2:nfac];
+  stop;
+  */  
+  
+  
+  @ Construct Historical Decomposition of F associated with each element of eta_1, with eta_2 as composite @
+    
+  i = 1; do while i <= cols(eta_1);
+   fac = miss(zeros(dnobs,nfac),0);
+   s = zeros(rows(m),1);
+   tt=seqa(1,1,dnobs);
+   tmp=packr(tt~eta);
+   ir1 = tmp[1,1];
+   ir2 = tmp[rows(tmp),1];
+   t = ir1; do while t <= ir2;
+   	s = m*s;
+   	s[1:nfac] = s[1:nfac] + h[.,i]*eta[t,i];
+   	fac[t,.]=s[1:nfac]';
+   t=t+1; endo;
+   str = "fac_eta_1_" $+ ftocv(i,1,0);
+   tmp=varput(fac,str);
+  i=i+1; endo;
+  
+  fac_eta_1 = miss(zeros(dnobs,nfac),0);
+  s = zeros(rows(m),1);
+   t = ir1; do while t <= ir2;
+   	s = m*s;
+   	s[1:nfac] = s[1:nfac] + h[.,1:cols(eta_1)]*eta[t,1:cols(eta_1)]';
+   	fac_eta_1[t,.]=s[1:nfac]';
+   t=t+1; endo;
+  
+  if cols(eta) .> cols(eta_1);
+  fac_eta_2 = miss(zeros(dnobs,nfac),0);
+  s = zeros(rows(m),1);
+   t = ir1; do while t <= ir2;
+   	s = m*s;
+   	s[1:nfac] = s[1:nfac] + h[.,cols(eta_1)+1:nfac]*eta[t,cols(eta_1)+1:nfac]';
+   	fac_eta_2[t,.]=s[1:nfac]';
+   t=t+1; endo;
+  endif;
+  
+  
+  @ Form Fitted Values @
+  i = 1; do while i <= cols(eta_1);
+  	str = "fac_eta_1_" $+ ftocv(i,1,0);
+  	fac = varget(str);
+  	yf = fac*lambda_rf';
+  	str = "yfit_eta_1_" $+ ftocv(i,1,0);
+  	tmp = varput(yf,str);
+  i=i+1; endo;
+  
+  yfit_eta_1_all = fac_eta_1*lambda_rf'; 
+  
+  if cols(eta) .> cols(eta_1);
+   yfit_eta_2 = fac_eta_2*lambda_rf'; 
+  endif;
+  
+  j = 1; do while j <= cols(eta_1);
+  	yftmp = miss(zeros(dnobs,nx),0);  
+  	str = "yfit_eta_1_" $+ ftocv(j,1,0);
+  	yfit = varget(str); 
+  	i=1; do while i <= nx;
+     {y4,yf4,yr4}=y4plot(ydata[.,i],yfit[.,i],bptcodevec[i]);
+     yftmp[.,i]=yf4;
+    i=i+1; endo;
+   	str = "yfit_eta_1_4_" $+ ftocv(j,1,0);
+  	tmp = varput(yftmp,str);  
+  j=j+1; endo;
+  
+  yfit_eta_1_4_all = miss(zeros(dnobs,nx),0);
+  i=1; do while i <= nx;
+   {y4,yf4,yr4}=y4plot(ydata[.,i],yfit_eta_1_all[.,i],bptcodevec[i]);
+   yfit_eta_1_4_all[.,i]=yf4;
+  i=i+1; endo;
+  
+  if cols(eta) .> cols(eta_1);
+   yfit_eta_2_4 = miss(zeros(dnobs,nx),0);
+   i=1; do while i <= nx;
+    {y4,yf4,yr4}=y4plot(ydata[.,i],yfit_eta_2[.,i],bptcodevec[i]);
+    yfit_eta_2_4[.,i]=yf4;
+   i=i+1; endo;
+  endif; 
+  
+  @ Construct IRF of Factors with Respect to Structural Shocks @
+  i = 1; do while i <= cols(eta_1);
+  	fimp = miss(zeros(nimp+1,nfac),0);
+  	s = zeros(rows(m),1);
+  	s[1:nfac,.]=h[.,i];
+  	fimp[1,.]=s[1:nfac]';
+  	imp = 1; do while imp <= nimp;
+  		s=m*s;
+  		fimp[imp+1,.]=s[1:nfac]';
+  	imp=imp+1; endo;
+  	str = "fimp_eta_1_" $+ ftocv(i,1,0);
+  	tmp = varput(fimp,str);
+  i=i+1; endo; 
+  
+  
+ @ ---------------------------------- R^2 by Recession ----------------------------- @ 
+ slist = 
+ "GDPC96";
+
+ "";"";
+ yres = ydata-yfit_rf;
+ yres_eta_1 = ydata-yfit_eta_1_all;
+ @ Compute RMSE over Various Dates @
+ k_rmse = 2 + rows(pdates);
+ mse_mat = missmat(rows(slist),k_rmse); @ RMSE @
+ mse_mat_eta_1 = missmat(rows(slist),k_rmse); @ RMSE @
+ ms_mat = missmat(rows(slist),k_rmse);  @ Root mean square of y @
+ /*
+ "RSQR by episode, number of periods, n_rmse:";;n_rmse;
+ "All Shocks";
+ i=1; do while i <= rows(slist);
+  ic = maxindc(bpnamevec .$== slist[i]);
+ 	u = yres[.,ic];
+ 	y = ydata[.,ic];
+   c2 = 2007 + (3-1)/4;
+   ii = (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,1]=meanc(x[.,1].^2);
+   mse_mat[i,1]=meanc(x[.,2].^2);
+   c1 = 1984 + (1-1)/4;
+   ii = (calvec .> c1-.0001) .* (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,2]=meanc(x[.,1].^2);
+   mse_mat[i,2]=meanc(x[.,2].^2);
+   j=1; do while j <= rows(pdates);
+   	c1 = pdates[j,1] + (pdates[j,2]-1)/4;
+    ii = (calvec .> c1-.0001);
+    x = selif(y~u,ii);
+    x = x[1:n_rmse,.];
+    ms_mat[i,2+j]=meanc(x[.,1].^2);
+    mse_mat[i,2+j]=meanc(x[.,2].^2);
+   j=j+1; endo;
+   rsqr=1-(mse_mat[i,.]./ms_mat[i,.]);
+   format /rd 4,0;
+   i;;",";;
+   bplabvec_short[ic];;",";;format /rd 5,2;prtmat_comma(rsqr);
+ i=i+1; endo;
+ "";"";
+ */
+ "RSQR by episode, number of periods, n_rmse:";;n_rmse;
+ "Structural Shock: ";;ident_str;
+ i=1; do while i <= rows(slist);
+  ic = maxindc(bpnamevec .$== slist[i]);
+ 	u = yres_eta_1[.,ic];
+ 	y = ydata[.,ic];
+   c2 = 2007 + (3-1)/4;
+   ii = (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,1]=meanc(x[.,1].^2);
+   mse_mat[i,1]=meanc(x[.,2].^2);
+   c1 = 1984 + (1-1)/4;
+   ii = (calvec .> c1-.0001) .* (calvec .< c2+.0001); 
+   x = selif(y~u,ii);
+   x = packr(x);
+   ms_mat[i,2]=meanc(x[.,1].^2);
+   mse_mat[i,2]=meanc(x[.,2].^2);
+   j=1; do while j <= rows(pdates);
+   	c1 = pdates[j,1] + (pdates[j,2]-1)/4;
+    ii = (calvec .> c1-.0001);
+    x = selif(y~u,ii);
+    x = x[1:n_rmse,.];
+    ms_mat[i,2+j]=meanc(x[.,1].^2);
+    mse_mat[i,2+j]=meanc(x[.,2].^2);
+   j=j+1; endo;
+   rsqr=1-(mse_mat[i,.]./ms_mat[i,.]);
+   format /rd 4,0;
+   i;;",";;
+   bplabvec_short[ic];;",";;format /rd 5,2;prtmat_comma(rsqr);
+ i=i+1; endo;
+ "";"";

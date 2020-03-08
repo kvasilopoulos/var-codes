@@ -1,0 +1,193 @@
+/* Construct Common Shocks Associated with Series 
+*/
+
+new;
+outwidth 256;
+library pgraph;
+graphset;
+xlsname="c:\\usr\\crisis\\ddisk\\data\\bpea_fac_1.xlsx";                    @ DATA Set (Excel File) @
+outdir="c:\\usr\\crisis\\ddisk\\gss\\out\\";
+figdir="c:\\usr\\crisis\\ddisk\\gss\\fig\\";
+
+@ -- Date Parameters for OLS Estimated of lambda and F -- @
+nest_fy = 1959;
+nest_fq = 3;
+nest_ly = 2007;
+nest_lq = 3;
+
+@ -- Parameters for full sample estimates of F (conditional on Lambda) -- @
+nest_fy_fs = 1959;
+nest_fq_fs = 3;
+nest_ly_fs = 2011;
+nest_lq_fs = 2;
+
+@ -- Factor VAR Sample Period -- @
+nest_fy_var = 1959;
+nest_fq_var = 3;
+nest_ly_var = 2007;
+nest_lq_var = 3;
+
+nest_fy_var = 1984;
+nest_fq_var = 3;
+nest_ly_var = 2007;
+nest_lq_var = 3;
+
+@ Demeaning @
+idemean = 1;   @ 0 Do Nothing
+               1 Eliminate low-frequency by local Demeaning
+               2 Eliminate low-frequency trend by full-sample demeaning @
+@ Bi-Weight Parameter for local demeaning @
+bw_bw = 100;
+   
+@ Factor Parameters @
+nfac = 6;
+nols_it = 200;   @ Number of OLS iterations (for unbalanced panel @
+
+@ VAR Parameters @
+var_method = 1;  @ 1 = full sample;  @
+var_lag = 4;     @ Number of lags in factor VAR @
+icomp=1;
+ivarmat=0;
+i_const = 0;     @ 0 = do not include constant in VAR @
+nimp = 100;      @ Number of IRF to Compute @
+
+if var_method ./= 1;
+ "Factor_VAR.gss uses time-invariant VAR -- stopping ";
+ stop;
+endif;
+
+
+@ -- Category Names --- @
+cat_name = 
+"NIPA" $|
+"IP"   $|
+"Emp/Unemp" $|
+"Hous.Starts" $|
+"Orders/Inv/Sales" $|
+"Prices" $|
+"EmpEarning/Productivity" $|
+"Int. Rates" $|
+"Money&Credit" $|
+"StockPrices&Wealth" $|
+"Housing Prices" $|
+"Exch.Rates" $|
+"" $|
+"Other";
+
+#include canon.prc;
+#include var.prc;
+#include fcst.prc;
+#include readxls.prc;
+#include bw_trend.prc;
+#include y4plot.prc;
+#include calendar.gss;
+#include datain_1.gss;
+
+@ -- Peak Dates for Comparisons -- @
+pdates = 
+(1960~2) |
+(1969~4) |
+(1973~4) |
+(1980~1) |
+(1981~3) |
+(1990~3) |
+(2001~1) |
+(2007~4) ;
+
+@ -- Trough Dates for Comparisons -- @
+tdates = 
+(1961~1) |
+(1970~4) |
+(1975~1) |
+(1980~3) |
+(1982~4) |
+(1991~1) |
+(2001~4) |
+(2009~2) ;
+
+@ String Vector with Dates @
+str_tdates = "";
+i = 1; do while i <= rows(tdates);
+	tmp = "" $+ ftocv(tdates[i,1],4,0) $+ ":" $+ ftocv(tdates[i,2],1,0);
+	if i .== 1;
+	 str_tdates = tmp;
+	else;
+	 str_tdates = str_tdates $| tmp;
+	endif;
+i = i+1; endo;
+
+i_tdates = missmat(rows(tdates),1);  @ Indicators for trough dates @
+i = 1; do while i <= rows(tdates);
+	cdate = tdates[i,1]+(tdates[i,2]-1)/4;
+	i_tdates[i] = minindc(abs(calvec-cdate));
+i = i+1; endo;
+
+
+"Number of Series in dataset = ";;cols(bpdata);
+nx=cols(bpdata);
+
+@ Estimate Reduced Form Factor and Lambda @
+#include rr_factor.gss;
+
+@ Data, Fitted Values, and Residuals @
+  ydata = bpdata;
+  yfit_rf = fac_rf*lambda_rf';                                     
+  yres_rf = ydata-yfit_rf;
+
+@ Estimate VAR for Factors @
+  /* m = companion matrix without constant
+     m_const = companion matrix with constant @ Last Element is constant @
+     seps = covariance matrix of residuals
+     eps = residuals
+     eps_lr = long-run residuals .. [I - Phi1 - ... - Phin]^-1 * eps;
+  */
+#include factor_var.gss;
+
+y = fac_rf;
+i=1; do while i<=var_lag;
+ x1 = missmat(dnobs,nfac); 
+ x1[1+i:dnobs,.]=fac_rf[1:dnobs-i,.];
+ if i .== 1;
+  x = x1;
+ else;
+  x = x~x1;
+ endif;
+i = i+1; endo;
+eps_fs = y - x*beta;
+yeps_rf = eps_fs*lambda_rf';
+
+ofile = outdir $+ "VAR_Residuals_84_07est.csv";
+output file = ^ofile reset; output on;
+tmp = calvec~eps_fs;
+format /ro 12,8;
+prtmat_comma(tmp);
+output off;
+
+sname =
+"GDPC96" $|
+"PCECC96" $|
+"GPDIC96" $|
+"PAYEMS" $|
+"OPHNFB" $|
+"HOUST" $|
+"WPU0561" $|
+"FEDFUNDS" $|
+"MED3_TB3M" $|
+"MVOL" $|
+"TNWBSHNO";
+
+eps_series = missmat(dnobs,rows(sname));
+i = 1; do while i <= rows(sname);
+	ii=maxindc(bpnamevec .$== sname[i]);
+	eps_series[.,i] = yeps_rf[.,ii];
+i = i+1; endo;
+
+ofile = outdir $+ "Series_innovations_84_07est.csv";
+output file = ^ofile reset; output on;
+tmp = calvec~eps_series;
+format /ro 12,8;
+prtmat_comma(tmp);
+output off;
+
+
+
