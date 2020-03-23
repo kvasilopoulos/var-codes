@@ -26,7 +26,7 @@ nImp = 20;              %number of steps in the IRF
 alpha = 0.68;           %level of significance for confidence intervals
 
 %bootstrap parameters
-nBoot = 10000;          %number of bootstrap replications
+nBoot = 500;          %number of bootstrap replications
 BlockSize = 19;         %size of blocks in the bootstrap
 seed = 1;               %seed for random number generator
 rng(seed);              %iniate the random number generator

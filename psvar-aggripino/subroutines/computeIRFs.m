@@ -175,7 +175,6 @@ for b=1:nB
             bootProxy.data  =bootSet.Z;
             
             Bzero =psvar(VARboot.resid,modelSpec,bootProxy)';
-
     end
     
     %
@@ -272,7 +271,6 @@ innovations =innovations(:,keepRows);
 
 %identification
 res =ProxySVARidentification(innovations,find(modelSpec.shockVar),proxy);
-res
 
 %Bzero
 Bzero=zeros(n,n); Bzero(:,modelSpec.shockVar)=res.B/res.B(modelSpec.shockVar);

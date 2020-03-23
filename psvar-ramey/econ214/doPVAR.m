@@ -53,7 +53,9 @@ SigmaTSigmaTp =b11iSig\b11b11p/b11iSig';
 % Impulse Response to a monetary Shock
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for j=1:VAR.k
-   ind = 1:VAR.k; ind(VAR.k) =j; ind(j) =VAR.k;
+   ind = 1:VAR.k; 
+   ind(VAR.k) =j; 
+   ind(j) =VAR.k;
 SSp = SigmaTSigmaTp(ind,ind);
 SigmaT=chol(SSp,'lower');
 VAR.SigmaT(:,:,j) = SigmaT(ind,ind);

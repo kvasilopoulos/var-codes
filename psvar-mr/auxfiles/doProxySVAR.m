@@ -30,6 +30,7 @@ ZZp     = b21ib11*Sig11*b21ib11'-(Sig21*b21ib11'+b21ib11*Sig21')+Sig22;
 b12b12p = (Sig21- b21ib11*Sig11)'*(ZZp\(Sig21- b21ib11*Sig11));
 b11b11p = Sig11-b12b12p;
 b22b22p = Sig22+b21ib11*(b12b12p-Sig11)*b21ib11';
+
 b12ib22   = ((Sig21- b21ib11*Sig11)'+b12b12p*b21ib11')/(b22b22p');
 b11iSig = eye(VAR.k)/(eye(VAR.k)-b12ib22*b21ib11);
 b21iSig = b21ib11*b11iSig;
